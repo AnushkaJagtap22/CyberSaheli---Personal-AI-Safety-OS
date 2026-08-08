@@ -1,0 +1,16 @@
+{
+  "name": "CyberSaheli",
+  "short_name": "CyberSaheli",
+  "description": "AI Cyber Safety Platform for Women",
+  "start_url": "/",
+  "theme_color": "#0A0A0B",
+  "background_color": "#0A0A0B",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

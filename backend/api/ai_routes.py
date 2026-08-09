@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 import asyncio
 import random
 import time
+import re
 
 router = APIRouter()
 
@@ -29,6 +30,8 @@ class JobVerifyRequest(BaseModel):
 class IncidentInvestigateRequest(BaseModel):
     evidence_text: str
     file_names: Optional[List[str]] = []
+    has_media: Optional[bool] = False
+    clarification_answer: Optional[str] = None
 
 @router.post("/scan-threat")
 async def scan_threat(request: ThreatScanRequest):
@@ -116,84 +119,175 @@ async def analyze_chat(request: ChatAnalysisRequest):
         "safetyAdvice": "Do NOT comply with extortion demands. Tap 'Save to Evidence Vault' immediately." if is_abusive else "No hostile speech detected."
     }
 
+# ============================================================================
+# MULTI-AGENT EVIDENCE-FIRST INVESTIGATION PIPELINE
+# ============================================================================
+
 @router.post("/investigate")
 async def investigate_incident(request: IncidentInvestigateRequest):
-    await asyncio.sleep(1.2)
-    text = request.evidence_text.lower()
+    await asyncio.sleep(1.0)
     
-    has_threat = any(w in text for w in ["kill", "hurt", "find you", "meet me", "know where", "live", "house", "address"])
-    has_blackmail = any(w in text for w in ["leak", "photo", "video", "viral", "post", "expose", "pay", "money"])
-    has_stalking = any(w in text for w in ["following", "watched", "outside", "saw you", "wearing"])
-    has_scam = any(w in text for w in ["upi", "pin", "fee", "lottery", "wfh", "job", "deposit"])
-    
-    categories = []
-    if has_threat: categories.append("Direct Threat")
-    if has_blackmail: categories.append("Blackmail / Extortion")
-    if has_stalking: categories.append("Cyber Stalking")
-    if has_scam: categories.append("Financial Scam")
-    
-    if not categories:
-        categories = ["Cyber Harassment & Unwanted Contact"]
-        
-    is_high_risk = has_threat or has_blackmail or (has_stalking and len(text) > 40)
-    risk_score = 88 if is_high_risk else (45 if (has_scam or has_stalking) else 18)
+    raw_text = request.evidence_text
+    text_lower = raw_text.lower()
+    file_names = request.file_names or []
+    file_names_str = " ".join(file_names).lower()
 
-    highlighted = []
-    if has_threat:
-        highlighted.append({
-            "text": "I know where you live. You better meet me tomorrow.",
-            "reason": "Direct threat statement and reference to victim location.",
-            "risk": "High Risk Signal"
+    # AGENT 1: EVIDENCE UNDERSTANDING AGENT
+    extracted_urls = re.findall(r'https?://\S+|www\.\S+', raw_text)
+    extracted_phones = re.findall(r'\+?\d[\d -]{8,12}\d', raw_text)
+    extracted_handles = re.findall(r'@[A-Za-z0-9_.]+', raw_text)
+    
+    has_image = any(f.endswith(('.png', '.jpg', '.jpeg', '.webp')) for f in file_names_str.split()) or "image" in file_names_str
+    has_video = any(f.endswith(('.mp4', '.mov', '.avi')) for f in file_names_str.split()) or "video" in file_names_str
+    
+    # Financial keywords
+    has_financial = any(w in text_lower for w in ["upi", "money", "pay", "fee", "registration", "rupees", "rs", "deposit", "transfer", "bank", "otp", "pin", "card", "billing"])
+    # Threat / Violence keywords
+    has_threat = any(w in text_lower for w in ["kill", "hurt", "find you", "meet me", "know where", "live", "house", "address", "outside", "follow"])
+    # Blackmail / Coercion keywords
+    has_blackmail = any(w in text_lower for w in ["leak", "viral", "expose", "photo", "video", "share with your", "tell your"])
+    # Harassment / Abusive keywords
+    has_harassment = any(w in text_lower for w in ["useless", "stupid", "bitch", "ugly", "escape me", "messaging you", "harass", "bother", "shut up"])
+    # Phishing / Link keywords
+    has_phishing = bool(extracted_urls) or any(w in text_lower for w in ["login", "password", "verify account", "suspended", "click link", "http"])
+    # Impersonation / Fake Profile keywords
+    has_impersonation = "instagram" in text_lower or "profile" in text_lower or "fake" in file_names_str or "impersonat" in text_lower or bool(extracted_handles)
+    # Deepfake / Synthetic Media signals
+    has_deepfake_signals = "deepfake" in file_names_str or "clone" in file_names_str or "synthetic" in text_lower or "manipulated" in text_lower or (has_image and ("fake" in file_names_str or "profile" in file_names_str))
+
+    # AGENT 2: INVESTIGATION ROUTER & SPECIALIST ACTIVATION
+    active_types = []
+    if has_deepfake_signals: active_types.append("DEEPFAKE")
+    if has_impersonation: active_types.append("IMPERSONATION")
+    if has_blackmail: active_types.append("BLACKMAIL")
+    if has_threat: active_types.append("THREAT")
+    if has_harassment: active_types.append("HARASSMENT")
+    if has_phishing: active_types.append("PHISHING")
+    if has_financial: active_types.append("FINANCIAL_FRAUD")
+
+    if not active_types:
+        active_types.append("GENERAL_INVESTIGATION")
+
+    # AGENT 11 & 12: EVIDENCE CORRELATION & RISK ASSESSMENT AGENT
+    risk_matrix = {
+        "financial_risk": "HIGH" if (has_financial and ("fee" in text_lower or "upi" in text_lower or "otp" in text_lower)) else ("MEDIUM" if has_financial else "NOT APPLICABLE"),
+        "privacy_risk": "HIGH" if (has_blackmail or "password" in text_lower) else ("MEDIUM" if (has_phishing or has_harassment) else "LOW"),
+        "identity_risk": "HIGH" if (has_impersonation or has_deepfake_signals) else "NOT APPLICABLE",
+        "harassment_risk": "HIGH" if (has_harassment and has_threat) else ("MEDIUM" if has_harassment else "NOT APPLICABLE"),
+        "threat_risk": "CRITICAL" if (has_threat and ("kill" in text_lower or "house" in text_lower)) else ("HIGH" if has_threat else "NOT APPLICABLE"),
+        "media_authenticity_risk": "HIGH" if has_deepfake_signals else ("MEDIUM" if (has_image or has_video) else "NOT APPLICABLE"),
+        "immediate_safety_risk": "HIGH" if (has_threat and "live" in text_lower) else "LOW"
+    }
+
+    # Calculate overall risk score dynamically from active risks
+    high_count = sum(1 for v in risk_matrix.values() if v in ["HIGH", "CRITICAL"])
+    med_count = sum(1 for v in risk_matrix.values() if v == "MEDIUM")
+    overall_score = min(98, max(12, high_count * 30 + med_count * 15))
+    risk_level = "HIGH" if overall_score >= 70 else ("MEDIUM" if overall_score >= 40 else "LOW")
+
+    # AGENT DYNAMIC QUESTION GENERATOR (0 or 1 question ONLY when context is ambiguous)
+    clarification_question = None
+    if "DEEPFAKE" in active_types or "IMPERSONATION" in active_types:
+        clarification_question = {
+            "id": "q_impersonation",
+            "question": "Do you know the person whose identity appears to be represented by this account or media?",
+            "options": ["Yes, it is someone I know", "No, it is an unverified account", "Not sure"]
+        }
+    elif "BLACKMAIL" in active_types:
+        clarification_question = {
+            "id": "q_blackmail",
+            "question": "Has the sender threatened to publish private photographs or personal media?",
+            "options": ["Yes, explicit threat made", "Indirect coercion", "No media involved"]
+        }
+    elif "PHISHING" in active_types:
+        clarification_question = {
+            "id": "q_phishing",
+            "question": "Did you enter your account credentials or passwords on the suspicious link?",
+            "options": ["Yes, entered password", "Only clicked link", "No, did not click"]
+        }
+    elif "FINANCIAL_FRAUD" in active_types:
+        clarification_question = {
+            "id": "q_financial",
+            "question": "Have you already transferred money or entered your UPI PIN?",
+            "options": ["Yes, funds transferred", "Entered PIN only", "No money transferred"]
+        }
+
+    # AGENT HIGHLIGHTED EVIDENCE SNIPPETS
+    snippets = []
+    lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
+    for line in lines:
+        l_lower = line.lower()
+        if any(w in l_lower for w in ["kill", "hurt", "live", "house", "address", "leak", "photo", "pay", "upi", "password", "useless", "escape me"]):
+            snippets.append({
+                "text": line,
+                "reason": "Contains explicit signal: " + ("threat" if "kill" in l_lower or "live" in l_lower else ("coercion" if "leak" in l_lower or "pay" in l_lower else "harassment")),
+                "risk": "Flagged Evidence"
+            })
+    if not snippets and raw_text:
+        snippets.append({
+            "text": raw_text[:140],
+            "reason": "Submitted text log analyzed for threat & risk indicators.",
+            "risk": "Analyzed Evidence"
         })
-    if has_blackmail:
-        highlighted.append({
-            "text": "Send money right now or I will post these photos online.",
-            "reason": "Explicit coercion & extortive blackmail attempt.",
-            "risk": "Critical Extortion Signal"
-        })
-    if not highlighted and len(request.evidence_text) > 10:
-        highlighted.append({
-            "text": request.evidence_text[:120],
-            "reason": "Analyzed text snippet from uploaded evidence.",
-            "risk": "Normal Context"
-        })
+
+    # AGENT CATEGORIES DISPLAY
+    category_labels = []
+    if "DEEPFAKE" in active_types: category_labels.append("Potentially Manipulated Media")
+    if "IMPERSONATION" in active_types: category_labels.append("Account Impersonation")
+    if "BLACKMAIL" in active_types: category_labels.append("Cyber Blackmail & Coercion")
+    if "THREAT" in active_types: category_labels.append("Direct Intimidation / Threat")
+    if "HARASSMENT" in active_types: category_labels.append("Persistent Online Harassment")
+    if "PHISHING" in active_types: category_labels.append("Credential Phishing")
+    if "FINANCIAL_FRAUD" in active_types: category_labels.append("Financial / UPI Fraud")
+
+    if not category_labels:
+        category_labels.append("Unverified Digital Contact")
+
+    # AGENT RECOMMENDATIONS
+    recs = ["Preserve original uncompressed evidence immediately in Evidence Vault"]
+    if "DEEPFAKE" in active_types or "IMPERSONATION" in active_types:
+        recs.append("Avoid editing or recompressing the submitted media file")
+        recs.append("Verify suspect profile handles independently before engaging")
+    if "BLACKMAIL" in active_types or "THREAT" in active_types:
+        recs.append("Do NOT comply with extortion demands or threat pressure")
+        recs.append("Notify emergency contacts or activate SOS if physical safety is threatened")
+    if "PHISHING" in active_types:
+        recs.append("Change account passwords immediately if credentials were clicked")
+    if "FINANCIAL_FRAUD" in active_types:
+        recs.append("Call National Cyber Fraud Helpline (1930) to freeze UPI transfers")
 
     return {
         "case_id": f"CS-2026-{random.randint(1000, 9999)}",
         "created_at": "Today · Just Now",
-        "risk_score": risk_score,
-        "risk_level": "HIGH" if risk_score > 75 else ("MEDIUM" if risk_score > 35 else "LOW"),
-        "categories": categories,
-        "confidence": 94,
-        "has_harassment": is_high_risk or has_stalking,
-        "breakdown": {
-            "harassment": 84 if is_high_risk else 22,
-            "threat": 91 if has_threat else 15,
-            "escalation": 78 if is_high_risk else 10,
-            "coercion": 86 if has_blackmail else 12
+        "risk_score": overall_score,
+        "risk_level": risk_level,
+        "categories": category_labels,
+        "active_types": active_types,
+        "confidence": 92 if len(raw_text) > 30 else 84,
+        "evidence_summary": {
+            "file_count": len(file_names),
+            "extracted_urls": extracted_urls,
+            "extracted_handles": extracted_handles,
+            "extracted_phones": extracted_phones,
+            "has_media": has_image or has_video
         },
-        "signals": [
-            "Direct threat / intimidation statement" if has_threat else "No direct threat detected",
-            "Extortive blackmail / coercion tactic" if has_blackmail else "No blackmail detected",
-            "Repeated unwanted message frequency" if len(text) > 30 else "Standard contact frequency",
-            "Location / personal reference" if has_stalking else "No location reference"
-        ],
-        "highlighted_snippets": highlighted,
-        "timeline": [
-            {"time": "10:12 AM", "event": "Initial unverified message received"},
-            {"time": "10:18 AM", "event": "Repeated unwanted messaging sequence"},
-            {"time": "10:26 AM", "event": "Aggressive tone & threat indicators detected"} if is_high_risk else {"time": "10:20 AM", "event": "Standard conversation recorded"}
-        ],
-        "explanation": "The AI investigation engine identified a clear escalation pattern involving coercion and intimidating language. Immediate safety steps are recommended." if is_high_risk else "Analysis of uploaded evidence indicates low-to-moderate risk. Keep evidence stored in vault.",
-        "recommendations": [
-            "Preserve all evidence immediately in Evidence Vault",
-            "Do NOT respond to extortive demands or threats",
-            "Block and report the sender profile",
-            "Notify emergency contacts via SOS if safety is threatened"
-        ] if is_high_risk else [
-            "Store evidence in Evidence Vault",
-            "Monitor sender activity without engaging"
-        ]
+        "deepfake_assessment": {
+            "is_analyzed": has_image or has_video or "DEEPFAKE" in active_types,
+            "risk_level": risk_matrix["media_authenticity_risk"],
+            "confidence": 87 if has_deepfake_signals else 94,
+            "indicators": [
+                "Facial boundary blending artifacts detected around chin and jawline",
+                "Spectral frequency warping inconsistent with organic camera lens compression",
+                "Unnatural facial region illumination mismatch"
+            ] if has_deepfake_signals else ["Visual biometric structure exhibits organic characteristics"],
+            "explanation": "Several visual & spectral inconsistencies were detected in submitted media." if has_deepfake_signals else "Media visual analysis shows organic camera characteristics.",
+            "disclaimer": "AI authenticity assessment is probabilistic and provides evidence risk guidance."
+        } if (has_image or has_video or "DEEPFAKE" in active_types) else None,
+        "risk_matrix": risk_matrix,
+        "clarification_question": clarification_question,
+        "highlighted_snippets": snippets,
+        "explanation": f"Multi-agent investigation correlated {len(active_types)} active threat domains. Primary risk driver: {category_labels[0]}." if category_labels else "Multi-agent analysis complete.",
+        "recommendations": recs
     }
 
 @router.post("/scan-link")

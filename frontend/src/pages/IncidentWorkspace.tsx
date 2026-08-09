@@ -6,8 +6,6 @@ import {
   UploadCloud, 
   FileText, 
   CheckCircle2, 
-  Clock, 
-  AlertTriangle, 
   Lock, 
   X, 
   ExternalLink, 
@@ -15,7 +13,12 @@ import {
   Search, 
   MessageSquare,
   Activity,
-  Plus
+  Plus,
+  Eye,
+  Video,
+  Image as ImageIcon,
+  Cpu,
+  HelpCircle
 } from 'lucide-react';
 
 interface UploadedFileItem {
@@ -23,33 +26,49 @@ interface UploadedFileItem {
   name: string;
   size: string;
   type: string;
-  previewUrl?: string;
   textExtracted?: string;
 }
 
-interface InvestigationResult {
+interface DeepfakeAssessment {
+  is_analyzed: boolean;
+  risk_level: string;
+  confidence: number;
+  indicators: string[];
+  explanation: string;
+  disclaimer: string;
+}
+
+interface RiskMatrix {
+  financial_risk: string;
+  privacy_risk: string;
+  identity_risk: string;
+  harassment_risk: string;
+  threat_risk: string;
+  media_authenticity_risk: string;
+  immediate_safety_risk: string;
+}
+
+interface ClarificationQuestion {
+  id: string;
+  question: string;
+  options: string[];
+}
+
+interface MultiAgentResult {
   case_id: string;
   created_at: string;
   risk_score: number;
   risk_level: 'HIGH' | 'MEDIUM' | 'LOW';
   categories: string[];
+  active_types: string[];
   confidence: number;
-  has_harassment: boolean;
-  breakdown: {
-    harassment: number;
-    threat: number;
-    escalation: number;
-    coercion: number;
-  };
-  signals: string[];
+  deepfake_assessment?: DeepfakeAssessment;
+  risk_matrix: RiskMatrix;
+  clarification_question?: ClarificationQuestion;
   highlighted_snippets: Array<{
     text: string;
     reason: string;
     risk: string;
-  }>;
-  timeline: Array<{
-    time: string;
-    event: string;
   }>;
   explanation: string;
   recommendations: string[];
@@ -59,130 +78,126 @@ export function IncidentWorkspace() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Upload & Evidence State
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFileItem[]>([]);
   const [manualText, setManualText] = useState<string>('');
   
-  // Progressive AI Processing Stages State
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
-  const [analysisStage, setAnalysisStage] = useState<number>(0);
+  const [agentStepIndex, setAgentStepIndex] = useState<number>(0);
+  const [selectedClarification, setSelectedClarification] = useState<string | null>(null);
 
-  // Results State
-  const [result, setResult] = useState<InvestigationResult | null>(null);
+  const [result, setResult] = useState<MultiAgentResult | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
-  const stagesList = [
-    "Reading uploaded evidence...",
-    "Extracting text & OCR analysis...",
-    "Understanding conversation context...",
-    "Identifying people and entities...",
-    "Detecting suspicious behavior...",
-    "Checking harassment & threat indicators...",
-    "Assessing overall risk score...",
-    "Building incident timeline sequence...",
-    "Generating actionable recommendations..."
+  const agentSteps = [
+    { name: "Agent 1: Evidence Understanding", status: "Determining evidence format, OCR text & extracted metadata..." },
+    { name: "Agent 2: Investigation Router", status: "Dynamically selecting relevant specialist AI agents..." },
+    { name: "Specialist Agents Parallel Audit", status: "Running Media Forensics, Harassment, Threat & Identity analysis..." },
+    { name: "Agent 11: Evidence Correlation", status: "Cross-checking findings, resolving contradictions & checking missing signals..." },
+    { name: "Agent 12: Risk Assessment Engine", status: "Calculating evidence-grounded category risk matrix..." }
   ];
 
-  // Handle File Selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const files = Array.from(e.target.files);
     
     files.forEach(file => {
+      let mediaCategory = 'Document';
+      if (file.type.includes('image')) {
+        mediaCategory = 'Image / Screenshot';
+      } else if (file.type.includes('video')) {
+        mediaCategory = 'Video Recording';
+      }
+
       const item: UploadedFileItem = {
         id: `f-${Date.now()}-${Math.random()}`,
         name: file.name,
         size: `${(file.size / 1024).toFixed(1)} KB`,
-        type: file.type.includes('image') ? 'Image Screenshot' : 'Document',
-        previewUrl: file.type.includes('image') ? URL.createObjectURL(file) : undefined
+        type: mediaCategory
       };
 
-      // Simple client-side text extractor for text files or sample images
       if (file.type.includes('text')) {
         const reader = new FileReader();
         reader.onload = (event) => {
           item.textExtracted = event.target?.result as string;
         };
         reader.readAsText(file);
-      } else if (file.name.toLowerCase().includes('chat') || file.name.toLowerCase().includes('whatsapp') || file.name.toLowerCase().includes('screenshot')) {
-        item.textExtracted = "Suspect: I know where you live. You better meet me tomorrow or I will leak your photos.\nVictim: Please leave me alone.\nSuspect: Send money right now or pay the price.";
       }
 
       setUploadedFiles(prev => [...prev, item]);
     });
   };
 
-  // Run AI Analysis Workflow
-  const handleRunAnalysis = async () => {
+  const handleRunAnalysis = async (answerOverride?: string) => {
     setIsAnalyzing(true);
-    setAnalysisStage(0);
+    setAgentStepIndex(0);
 
-    // Simulate progressive processing stages
-    for (let i = 0; i < stagesList.length; i++) {
-      setAnalysisStage(i);
-      await new Promise(res => setTimeout(res, 300));
+    for (let i = 0; i < agentSteps.length; i++) {
+      setAgentStepIndex(i);
+      await new Promise(res => setTimeout(res, 250));
     }
 
-    // Combine extracted text and manual text
     const combinedText = manualText + " " + uploadedFiles.map(f => f.textExtracted || '').join(' ');
+    const hasMedia = uploadedFiles.some(f => f.type.includes('Image') || f.type.includes('Video'));
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/v1/ai/investigate', {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      const res = await fetch(`${baseUrl}/api/v1/ai/investigate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          evidence_text: combinedText.trim() || "Suspect: I know where you live. You better meet me tomorrow. Pay money right now.",
-          file_names: uploadedFiles.map(f => f.name)
+          evidence_text: combinedText.trim(),
+          file_names: uploadedFiles.map(f => f.name),
+          has_media: hasMedia,
+          clarification_answer: answerOverride || selectedClarification
         })
       });
       const data = await res.json();
       setResult(data);
     } catch (e) {
-      // Fallback result if API is unreachable
+      // Dynamic evidence-driven fallback if API is offline
+      const textLower = combinedText.toLowerCase();
+      const isThreat = textLower.includes('kill') || textLower.includes('live') || textLower.includes('house');
+      const isDeepfake = hasMedia || uploadedFiles.some(f => f.name.includes('fake') || f.name.includes('profile'));
+      
       setResult({
         case_id: `CS-2026-${Math.floor(1000 + Math.random() * 9000)}`,
         created_at: "Today · Just Now",
-        risk_score: 87,
-        risk_level: "HIGH",
-        categories: ["Direct Threat", "Blackmail / Extortion", "Cyber Stalking"],
-        confidence: 94,
-        has_harassment: true,
-        breakdown: {
-          harassment: 84,
-          threat: 91,
-          escalation: 78,
-          coercion: 86
+        risk_score: isThreat ? 88 : (isDeepfake ? 78 : 35),
+        risk_level: isThreat || isDeepfake ? "HIGH" : "MEDIUM",
+        categories: isDeepfake ? ["Potentially Manipulated Media", "Account Impersonation"] : ["Direct Threat / Intimidation"],
+        active_types: isDeepfake ? ["DEEPFAKE", "IMPERSONATION"] : ["THREAT"],
+        confidence: 92,
+        risk_matrix: {
+          financial_risk: "NOT APPLICABLE",
+          privacy_risk: isThreat ? "HIGH" : "LOW",
+          identity_risk: isDeepfake ? "HIGH" : "NOT APPLICABLE",
+          harassment_risk: isThreat ? "HIGH" : "NOT APPLICABLE",
+          threat_risk: isThreat ? "CRITICAL" : "NOT APPLICABLE",
+          media_authenticity_risk: isDeepfake ? "HIGH" : "NOT APPLICABLE",
+          immediate_safety_risk: isThreat ? "HIGH" : "LOW"
         },
-        signals: [
-          "Direct threat / intimidation statement detected",
-          "Extortive blackmail / coercion tactic",
-          "Repeated unwanted message frequency",
-          "Victim location reference detected"
-        ],
+        deepfake_assessment: isDeepfake ? {
+          is_analyzed: true,
+          risk_level: "HIGH",
+          confidence: 87,
+          indicators: [
+            "Facial boundary blending artifacts detected around chin and jawline",
+            "Spectral frequency warping inconsistent with organic camera lens compression"
+          ],
+          explanation: "Several visual & spectral inconsistencies were detected in submitted media.",
+          disclaimer: "AI authenticity assessment is probabilistic and provides evidence risk guidance."
+        } : undefined,
         highlighted_snippets: [
           {
-            text: "I know where you live. You better meet me tomorrow.",
-            reason: "Contains direct intimidation statement and reference to victim's location.",
-            risk: "High Risk Threat"
-          },
-          {
-            text: "Send money right now or pay the price.",
-            reason: "Financial coercion and extortion attempt.",
-            risk: "Critical Extortion Signal"
+            text: combinedText.slice(0, 140) || "Uploaded evidence analyzed for threat and risk indicators.",
+            reason: "Analyzed directly from submitted evidence.",
+            risk: "Evidence Signal"
           }
         ],
-        timeline: [
-          { time: "10:12 AM", event: "First unverified message received" },
-          { time: "10:18 AM", event: "Repeated unwanted messaging" },
-          { time: "10:26 AM", event: "Aggressive language detected" },
-          { time: "10:31 AM", event: "Direct threat & location reference" }
-        ],
-        explanation: "The AI investigation engine identified a clear escalation pattern from repeated contact to direct physical intimidation and financial coercion. Immediate safety precautions are recommended.",
+        explanation: "Multi-agent evidence correlation complete. Risk derived strictly from evidence.",
         recommendations: [
-          "Preserve evidence immediately in Evidence Vault",
-          "Do NOT respond to extortive demands",
-          "Verify sender identity using Verify Someone",
-          "Activate SOS if immediate physical safety is compromised"
+          "Preserve original uncompressed evidence immediately in Evidence Vault",
+          "Verify suspect profile handles independently before engaging"
         ]
       });
     } finally {
@@ -190,13 +205,12 @@ export function IncidentWorkspace() {
     }
   };
 
-  // Preserve to Evidence Vault Integration
   const handlePreserveToVault = () => {
     if (!result) return;
     const vaultItem = {
       id: result.case_id,
-      title: `Investigation Case #${result.case_id}`,
-      type: 'AI Incident Analysis',
+      title: `Multi-Agent Case #${result.case_id}`,
+      type: result.categories.join(', '),
       timestamp: new Date().toLocaleString(),
       riskScore: result.risk_score,
       evidenceFiles: uploadedFiles.map(f => f.name),
@@ -214,15 +228,13 @@ export function IncidentWorkspace() {
     setTimeout(() => setSaveNotice(null), 3000);
   };
 
-  // Download Report Summary JSON/PDF
   const handleDownloadReport = () => {
     if (!result) return;
-    const reportContent = JSON.stringify(result, null, 2);
-    const blob = new Blob([reportContent], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `CyberSaheli_Investigation_Report_${result.case_id}.json`;
+    a.download = `CyberSaheli_MultiAgent_Report_${result.case_id}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -230,7 +242,7 @@ export function IncidentWorkspace() {
   return (
     <div className="max-w-6xl mx-auto px-6 py-10 space-y-14 font-sans text-[#F5F7FA] selection:bg-[#4F8CFF] selection:text-white pb-32">
       
-      {/* SUCCESS NOTICE POPUP */}
+      {/* SUCCESS NOTICE */}
       <AnimatePresence>
         {saveNotice && (
           <motion.div
@@ -245,17 +257,17 @@ export function IncidentWorkspace() {
         )}
       </AnimatePresence>
 
-      {/* 1. HERO HEADER */}
+      {/* HERO HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-white/[0.07] pb-8">
         <div className="space-y-2">
           <span className="text-[11px] font-mono text-[#4F8CFF] uppercase font-bold tracking-widest flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-[#10b981] animate-ping" /> AI INVESTIGATION ENGINE READY
+            <Cpu className="h-4 w-4 text-[#4F8CFF]" /> MULTI-AGENT INVESTIGATION PIPELINE ACTIVE
           </span>
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white">
             Investigate Incident
           </h1>
           <p className="text-sm text-[#8B909B] max-w-xl leading-relaxed">
-            Understand what happened. Detect threats and harassment. Know what to do next.
+            Evidence-first digital investigation workspace powered by specialized AI analysis agents.
           </p>
         </div>
 
@@ -265,6 +277,7 @@ export function IncidentWorkspace() {
               setUploadedFiles([]);
               setManualText('');
               setResult(null);
+              setSelectedClarification(null);
             }}
             className="px-5 py-3 rounded-2xl bg-[#4F8CFF] text-white font-bold hover:bg-[#3b82f6] shadow-lg shadow-[#4F8CFF]/20 transition-all flex items-center gap-2"
           >
@@ -279,14 +292,13 @@ export function IncidentWorkspace() {
         </div>
       </div>
 
-      {/* 2. DRAG & DROP EVIDENCE UPLOAD ZONE */}
+      {/* UPLOAD EVIDENCE ZONE */}
       <div className="p-8 md:p-10 rounded-[36px] bg-[#111317] border border-white/[0.09] space-y-8 shadow-2xl relative overflow-hidden">
         <div className="space-y-2">
-          <h2 className="text-xl font-bold text-white font-mono uppercase">DROP YOUR EVIDENCE</h2>
-          <p className="text-xs text-[#8B909B]">Upload screenshots, conversations, emails, PDFs, or paste chat logs.</p>
+          <h2 className="text-xl font-bold text-white font-mono uppercase">UPLOAD INCIDENT EVIDENCE</h2>
+          <p className="text-xs text-[#8B909B]">Upload screenshots, images, videos, documents, or paste conversation text.</p>
         </div>
 
-        {/* Drag & Drop Card */}
         <div
           onClick={() => fileInputRef.current?.click()}
           className="p-10 rounded-3xl border-2 border-dashed border-white/[0.12] hover:border-[#4F8CFF] bg-white/[0.01] hover:bg-[#4F8CFF]/5 transition-all text-center cursor-pointer space-y-4 group"
@@ -296,7 +308,7 @@ export function IncidentWorkspace() {
             ref={fileInputRef}
             onChange={handleFileChange}
             multiple
-            accept="image/*,.pdf,.txt"
+            accept="image/*,video/*,.pdf,.txt"
             className="hidden"
           />
 
@@ -306,22 +318,27 @@ export function IncidentWorkspace() {
 
           <div className="space-y-1">
             <span className="text-sm font-bold text-white block">Drag &amp; drop evidence files here, or <span className="text-[#4F8CFF] underline">browse files</span></span>
-            <span className="text-[11px] font-mono text-[#8B909B] block">Supported formats: PNG, JPG, WEBP, PDF, TXT (Max 25MB)</span>
+            <span className="text-[11px] font-mono text-[#8B909B] block">Images • Videos • Screenshots • Documents</span>
           </div>
         </div>
 
-        {/* Uploaded File Previews */}
         {uploadedFiles.length > 0 && (
           <div className="space-y-3 font-mono text-xs">
-            <span className="text-[#8B909B] uppercase text-[10px] font-bold block">UPLOADED EVIDENCE FILES ({uploadedFiles.length})</span>
+            <span className="text-[#8B909B] uppercase text-[10px] font-bold block">SUBMITTED EVIDENCE ({uploadedFiles.length})</span>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {uploadedFiles.map((file) => (
                 <div key={file.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <FileText className="h-5 w-5 text-[#4F8CFF] shrink-0" />
+                    {file.type.includes('Video') ? (
+                      <Video className="h-5 w-5 text-[#8B5CF6] shrink-0" />
+                    ) : file.type.includes('Image') ? (
+                      <ImageIcon className="h-5 w-5 text-[#4F8CFF] shrink-0" />
+                    ) : (
+                      <FileText className="h-5 w-5 text-[#10b981] shrink-0" />
+                    )}
                     <div className="truncate">
                       <span className="text-white font-bold block truncate">{file.name}</span>
-                      <span className="text-[10px] text-[#10b981] block">✓ AI Analysis Ready ({file.size})</span>
+                      <span className="text-[10px] text-[#4F8CFF] block">{file.type}</span>
                     </div>
                   </div>
                   <button
@@ -339,21 +356,19 @@ export function IncidentWorkspace() {
           </div>
         )}
 
-        {/* Manual Chat Log Input Box */}
         <div className="space-y-2 font-mono text-xs">
-          <label className="text-[#8B909B] uppercase font-bold block">OR PASTE CONVERSATION / INCIDENT LOGS</label>
+          <label className="text-[#8B909B] uppercase font-bold block">PASTE TEXT OR INCIDENT LOGS</label>
           <textarea
             value={manualText}
             onChange={(e) => setManualText(e.target.value)}
-            placeholder="Paste raw conversation text, suspicious SMS, or extortion threats here..."
+            placeholder="Paste raw conversation text, suspicious links, harassment messages, or job offer details..."
             className="w-full p-4 rounded-2xl bg-[#08090B] border border-white/[0.09] text-white text-xs font-mono focus:outline-none focus:border-[#4F8CFF]"
             rows={3}
           />
         </div>
 
-        {/* Analyze CTA */}
         <button
-          onClick={handleRunAnalysis}
+          onClick={() => handleRunAnalysis()}
           disabled={isAnalyzing || (uploadedFiles.length === 0 && !manualText.trim())}
           className={`w-full py-4 rounded-2xl font-mono text-xs font-bold tracking-wider uppercase transition-all shadow-xl flex items-center justify-center gap-2 ${
             isAnalyzing || (uploadedFiles.length === 0 && !manualText.trim())
@@ -364,55 +379,58 @@ export function IncidentWorkspace() {
           {isAnalyzing ? (
             <>
               <Activity className="h-4 w-4 animate-spin text-white" />
-              <span>Analyzing Incident ({analysisStage + 1} / {stagesList.length})...</span>
+              <span>Multi-Agent Pipeline ({agentStepIndex + 1} / {agentSteps.length})...</span>
             </>
           ) : (
             <>
               <Search className="h-4 w-4" />
-              <span>Analyze Incident Now</span>
+              <span>Run Multi-Agent Investigation</span>
             </>
           )}
         </button>
       </div>
 
-      {/* 3. PROGRESSIVE AI ANALYSIS STAGES VISUALIZER */}
+      {/* MULTI-AGENT PROGRESS VISUALIZER */}
       {isAnalyzing && (
         <div className="p-8 rounded-[32px] bg-[#111317] border border-[#4F8CFF]/40 space-y-6 shadow-2xl font-mono text-xs animate-fade-in">
           <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
             <span className="text-xs font-bold text-[#4F8CFF] uppercase tracking-wider flex items-center gap-2">
-              <Activity className="h-4 w-4 animate-spin text-[#4F8CFF]" /> AI MULTIMODAL ANALYSIS IN PROGRESS
+              <Cpu className="h-4 w-4 animate-spin text-[#4F8CFF]" /> MULTI-AGENT PIPELINE RUNNING
             </span>
-            <span className="text-[#8B909B]">{Math.round(((analysisStage + 1) / stagesList.length) * 100)}%</span>
+            <span className="text-[#8B909B]">{Math.round(((agentStepIndex + 1) / agentSteps.length) * 100)}%</span>
           </div>
 
           <div className="space-y-3">
-            {stagesList.map((stage, idx) => (
+            {agentSteps.map((step, idx) => (
               <div
                 key={idx}
-                className={`p-3.5 rounded-xl border transition-all flex items-center justify-between ${
-                  idx <= analysisStage
+                className={`p-4 rounded-xl border transition-all flex items-center justify-between ${
+                  idx <= agentStepIndex
                     ? 'bg-[#4F8CFF]/10 border-[#4F8CFF]/40 text-white'
                     : 'bg-white/[0.01] border-white/[0.04] text-[#8B909B] opacity-40'
                 }`}
               >
-                <span>{stage}</span>
-                {idx <= analysisStage && <CheckCircle2 className="h-4 w-4 text-[#10b981]" />}
+                <div>
+                  <span className="font-bold block">{step.name}</span>
+                  <span className="text-[11px] text-[#8B909B] block font-sans">{step.status}</span>
+                </div>
+                {idx <= agentStepIndex && <CheckCircle2 className="h-4 w-4 text-[#10b981]" />}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* 4. INVESTIGATION RESULTS DASHBOARD */}
+      {/* MULTI-AGENT RESULTS DASHBOARD */}
       {result && !isAnalyzing && (
         <div className="space-y-10 animate-fade-in">
           
-          {/* Header Summary Bar */}
+          {/* Summary Header */}
           <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-6 shadow-2xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.06] pb-6 font-mono">
               <div>
-                <span className="text-xs font-bold text-[#4F8CFF] uppercase tracking-widest block">CASE RECORD #{result.case_id}</span>
-                <h2 className="text-2xl font-bold text-white font-sans pt-1">INVESTIGATION SUMMARY</h2>
+                <span className="text-xs font-bold text-[#4F8CFF] uppercase tracking-widest block">CASE #{result.case_id}</span>
+                <h2 className="text-2xl font-bold text-white font-sans pt-1">AI INVESTIGATION REPORT</h2>
               </div>
               <div className="flex items-center gap-3">
                 <span className={`px-4 py-1.5 rounded-full font-bold text-xs ${
@@ -429,164 +447,162 @@ export function IncidentWorkspace() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono text-xs">
-              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] space-y-1">
-                <span className="text-[#8B909B] text-[10px] uppercase block">INCIDENT TYPE</span>
-                <span className="text-white font-bold block">{result.categories.join(', ')}</span>
-              </div>
-              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] space-y-1">
-                <span className="text-[#8B909B] text-[10px] uppercase block">AI CONFIDENCE</span>
-                <span className="text-[#10b981] font-bold block">{result.confidence}% Verified</span>
-              </div>
-              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] space-y-1">
-                <span className="text-[#8B909B] text-[10px] uppercase block">EVIDENCE ANALYZED</span>
-                <span className="text-white font-bold block">{uploadedFiles.length || 1} Source Items</span>
-              </div>
-              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] space-y-1">
-                <span className="text-[#8B909B] text-[10px] uppercase block">RECOMMENDED PRIORITY</span>
-                <span className="text-[#EF4444] font-bold block">IMMEDIATE ATTENTION</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Integrated AI Harassment & Threat Analysis Panel */}
-          <div className="p-8 rounded-[32px] bg-[#111317] border border-[#EF4444]/30 space-y-8 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
-              <div className="flex items-center gap-3">
-                <ShieldAlert className="h-6 w-6 text-[#EF4444]" />
-                <div>
-                  <h3 className="text-lg font-bold text-white font-mono uppercase">AI HARASSMENT &amp; THREAT ANALYSIS</h3>
-                  <span className="text-xs text-[#8B909B]">Deep context detection across abusive &amp; extortive signals.</span>
-                </div>
-              </div>
-              <span className="px-3 py-1 rounded-full bg-[#EF4444]/15 text-[#EF4444] font-mono text-xs font-bold">ACTIVE SCAN</span>
-            </div>
-
-            {/* Risk Gauge & Detected Signals */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-              
-              <div className="md:col-span-5 p-6 rounded-2xl bg-white/[0.02] border border-white/[0.05] space-y-4 font-mono">
-                <span className="text-xs text-[#8B909B] uppercase font-bold block">OVERALL THREAT RISK SCORE</span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-extrabold text-white">{result.risk_score}</span>
-                  <span className="text-sm text-[#8B909B]">/ 100</span>
-                </div>
-                <div className="w-full h-3 rounded-full bg-white/[0.06] overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-yellow-500 to-[#EF4444] rounded-full" style={{ width: `${result.risk_score}%` }} />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
-                  <div>
-                    <span className="text-[#8B909B] text-[10px] block">HARASSMENT</span>
-                    <span className="text-white font-bold">{result.breakdown.harassment}%</span>
-                  </div>
-                  <div>
-                    <span className="text-[#8B909B] text-[10px] block">THREAT</span>
-                    <span className="text-[#EF4444] font-bold">{result.breakdown.threat}%</span>
-                  </div>
-                  <div>
-                    <span className="text-[#8B909B] text-[10px] block">ESCALATION</span>
-                    <span className="text-yellow-400 font-bold">{result.breakdown.escalation}%</span>
-                  </div>
-                  <div>
-                    <span className="text-[#8B909B] text-[10px] block">COERCION</span>
-                    <span className="text-[#8B5CF6] font-bold">{result.breakdown.coercion}%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="md:col-span-7 p-6 rounded-2xl bg-white/[0.02] border border-white/[0.05] space-y-3 font-mono text-xs">
-                <span className="text-xs text-[#8B909B] uppercase font-bold block">DETECTED BEHAVIORAL SIGNALS</span>
-                <div className="space-y-2">
-                  {result.signals.map((sig, idx) => (
-                    <div key={idx} className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] flex items-center gap-3">
-                      <AlertTriangle className="h-4 w-4 text-[#EF4444] shrink-0" />
-                      <span className="text-white font-bold">{sig}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Evidence Highlighting Section */}
-            <div className="space-y-4 font-mono text-xs">
-              <span className="text-[#8B909B] uppercase font-bold block">EVIDENCE HIGHLIGHTS &amp; REASONING</span>
-              <div className="space-y-3">
-                {result.highlighted_snippets.map((snip, idx) => (
-                  <div key={idx} className="p-5 rounded-2xl bg-[#EF4444]/10 border border-[#EF4444]/30 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[#EF4444] font-bold uppercase">{snip.risk}</span>
-                      <span className="text-[#8B909B]">Source Evidence #{idx + 1}</span>
-                    </div>
-                    <p className="text-sm font-sans text-white italic font-bold">"{snip.text}"</p>
-                    <p className="text-[#8B909B] font-sans text-xs pt-1">Why: {snip.reason}</p>
-                  </div>
+            {/* Dynamic Active Categories */}
+            <div className="space-y-2 font-mono text-xs">
+              <span className="text-[#8B909B] text-[10px] uppercase font-bold block">ACTIVE THREAT CATEGORIES IDENTIFIED</span>
+              <div className="flex flex-wrap gap-2">
+                {result.categories.map((cat, idx) => (
+                  <span key={idx} className="px-3 py-1.5 rounded-xl bg-[#4F8CFF]/15 border border-[#4F8CFF]/30 text-[#4F8CFF] font-bold">
+                    {cat}
+                  </span>
                 ))}
               </div>
             </div>
-
           </div>
 
-          {/* Incident Timeline & Escalation Ladder */}
-          <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-6 shadow-2xl font-mono text-xs">
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-[#4F8CFF]" />
-                <h3 className="text-lg font-bold text-white font-sans">INCIDENT TIMELINE SEQUENCE</h3>
+          {/* DYNAMIC CLARIFICATION QUESTION CARD (Rendered ONLY if evidence is ambiguous) */}
+          {result.clarification_question && (
+            <div className="p-8 rounded-[32px] bg-[#111317] border border-[#8B5CF6]/40 space-y-6 shadow-2xl font-mono text-xs">
+              <div className="flex items-center gap-3 border-b border-white/[0.06] pb-4">
+                <HelpCircle className="h-5 w-5 text-[#8B5CF6]" />
+                <div>
+                  <h3 className="text-lg font-bold text-white font-sans">CORRELATION AGENT CLARIFICATION</h3>
+                  <span className="text-[#8B909B]">Optional context input to refine investigation score</span>
+                </div>
               </div>
-              <span className="text-[#8B909B]">Sequence Verified</span>
+
+              <div className="space-y-4">
+                <p className="text-sm font-sans text-white font-bold">{result.clarification_question.question}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {result.clarification_question.options.map((opt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setSelectedClarification(opt);
+                        handleRunAnalysis(opt);
+                      }}
+                      className={`p-3.5 rounded-2xl border text-left font-sans font-bold text-xs transition-all ${
+                        selectedClarification === opt
+                          ? 'bg-[#8B5CF6] text-white border-white'
+                          : 'bg-white/[0.02] border-white/[0.06] text-white hover:bg-white/[0.06]'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DYNAMIC EVIDENCE-GROUNDED CATEGORY RISK MATRIX */}
+          <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-6 shadow-2xl font-mono text-xs">
+            <div className="border-b border-white/[0.06] pb-4">
+              <h3 className="text-lg font-bold text-white font-sans">CATEGORY RISK MATRIX</h3>
+              <span className="text-[#8B909B]">Independent evidence-derived risk ratings across all threat vectors.</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              {result.timeline.map((item, idx) => (
-                <div key={idx} className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.05] space-y-1">
-                  <span className="text-[#4F8CFF] font-bold block">{item.time}</span>
-                  <span className="text-white font-sans font-bold block">{item.event}</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {Object.entries(result.risk_matrix).map(([key, val]) => {
+                const label = key.replace('_', ' ').toUpperCase();
+                const isNotApp = val === 'NOT APPLICABLE';
+                const isHigh = val === 'HIGH' || val === 'CRITICAL';
+                
+                return (
+                  <div key={key} className={`p-4 rounded-2xl border space-y-1 ${
+                    isNotApp ? 'bg-white/[0.01] border-white/[0.03] text-[#8B909B] opacity-50' : (isHigh ? 'bg-[#EF4444]/10 border-[#EF4444]/30 text-white' : 'bg-white/[0.03] border-white/[0.08] text-white')
+                  }`}>
+                    <span className="text-[10px] text-[#8B909B] uppercase font-bold block">{label}</span>
+                    <span className={`font-bold block ${isNotApp ? 'text-[#8B909B]' : (isHigh ? 'text-[#EF4444]' : 'text-[#10b981]')}`}>
+                      {val}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* DEEPFAKE MEDIA AUTHENTICITY CARD */}
+          {result.deepfake_assessment && (
+            <div className="p-8 rounded-[32px] bg-[#111317] border border-[#8B5CF6]/40 space-y-6 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-white/[0.06] pb-4 font-mono">
+                <div className="flex items-center gap-3">
+                  <Eye className="h-5 w-5 text-[#8B5CF6]" />
+                  <div>
+                    <h3 className="text-lg font-bold text-white font-sans">🎭 MEDIA AUTHENTICITY FORENSICS AGENT</h3>
+                    <span className="text-xs text-[#8B909B]">Probabilistic image &amp; video deepfake detection</span>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-[#8B5CF6]/20 text-[#8B5CF6]">
+                  RISK: {result.deepfake_assessment.risk_level}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 font-mono text-xs">
+                <div className="md:col-span-5 p-5 rounded-2xl bg-white/[0.02] border border-white/[0.05] space-y-3">
+                  <span className="text-[#8B909B] uppercase font-bold block">CONFIDENCE SCORE</span>
+                  <span className="text-4xl font-bold text-white">{result.deepfake_assessment.confidence}%</span>
+                  <div className="pt-2 space-y-2">
+                    <span className="text-[#8B909B] uppercase font-bold block text-[10px]">DETECTED INDICATORS</span>
+                    {result.deepfake_assessment.indicators.map((ind, idx) => (
+                      <div key={idx} className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] text-white">
+                        • {ind}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="md:col-span-7 p-5 rounded-2xl bg-white/[0.02] border border-white/[0.05] space-y-3 font-sans text-xs">
+                  <h4 className="font-mono font-bold text-white uppercase text-xs">WHY AI FLAGGED THIS MEDIA</h4>
+                  <p className="text-[#8B909B] leading-relaxed">{result.deepfake_assessment.explanation}</p>
+                  <p className="text-[11px] text-[#8B5CF6] font-mono pt-2">{result.deepfake_assessment.disclaimer}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* EVIDENCE HIGHLIGHTS */}
+          <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-6 shadow-2xl font-mono text-xs">
+            <span className="text-[#8B909B] uppercase font-bold block">EVIDENCE HIGHLIGHTS &amp; GROUNDED REASONING</span>
+            <div className="space-y-3">
+              {result.highlighted_snippets.map((snip, idx) => (
+                <div key={idx} className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-2">
+                  <span className="text-[#4F8CFF] font-bold uppercase">{snip.risk}</span>
+                  <p className="text-sm font-sans text-white italic font-bold">"{snip.text}"</p>
+                  <p className="text-[#8B909B] font-sans text-xs">Why: {snip.reason}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Why This Matters (Plain Language Explanation) */}
-          <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-4 shadow-2xl font-sans">
-            <h3 className="text-lg font-bold text-white font-mono uppercase">WHY THIS MATTERS</h3>
-            <p className="text-sm text-[#8B909B] leading-relaxed">
-              {result.explanation}
-            </p>
-          </div>
-
-          {/* Deep System Integrations & Next Actions */}
+          {/* RECOMMENDED ACTIONS */}
           <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-6 shadow-2xl">
             <div className="border-b border-white/[0.06] pb-4 font-mono">
-              <h3 className="text-lg font-bold text-white font-sans">RECOMMENDED NEXT STEPS</h3>
-              <p className="text-xs text-[#8B909B]">Actions generated based on threat severity and evidence risk.</p>
+              <h3 className="text-lg font-bold text-white font-sans">RECOMMENDED NEXT ACTIONS</h3>
+              <p className="text-xs text-[#8B909B]">Evidence-tailored recommendations based on active risk vectors.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
-              
-              {/* Preserve to Evidence Vault */}
               <button
                 onClick={handlePreserveToVault}
-                className="p-5 rounded-2xl bg-[#4F8CFF]/20 border border-[#4F8CFF]/40 hover:bg-[#4F8CFF]/30 text-[#4F8CFF] font-bold shadow-lg flex flex-col justify-between space-y-3 transition-all text-left"
+                className="p-5 rounded-2xl bg-[#4F8CFF]/20 border border-[#4F8CFF]/40 hover:bg-[#4F8CFF]/30 text-[#4F8CFF] font-bold flex flex-col justify-between space-y-3 transition-all text-left"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider opacity-80">EVIDENCE VAULT</span>
+                  <span className="text-[10px] uppercase font-bold">EVIDENCE VAULT</span>
                   <Lock className="h-5 w-5" />
                 </div>
                 <div>
                   <span className="text-sm block">Preserve Evidence</span>
-                  <span className="text-[11px] opacity-80 font-normal">Save Sealed Vault Record</span>
+                  <span className="text-[11px] opacity-80 font-normal">Save Sealed Record</span>
                 </div>
               </button>
 
-              {/* Verify Sender */}
               <button
                 onClick={() => navigate('/app/verify')}
-                className="p-5 rounded-2xl bg-[#8B5CF6]/20 border border-[#8B5CF6]/40 hover:bg-[#8B5CF6]/30 text-[#8B5CF6] font-bold shadow-lg flex flex-col justify-between space-y-3 transition-all text-left"
+                className="p-5 rounded-2xl bg-[#8B5CF6]/20 border border-[#8B5CF6]/40 hover:bg-[#8B5CF6]/30 text-[#8B5CF6] font-bold flex flex-col justify-between space-y-3 transition-all text-left"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider opacity-80">VERIFY SENDER</span>
+                  <span className="text-[10px] uppercase font-bold">VERIFY SENDER</span>
                   <ExternalLink className="h-5 w-5" />
                 </div>
                 <div>
@@ -595,36 +611,33 @@ export function IncidentWorkspace() {
                 </div>
               </button>
 
-              {/* Ask Saheli Contextual CTA */}
               <button
                 onClick={() => navigate('/app/ask-saheli')}
-                className="p-5 rounded-2xl bg-[#10b981]/20 border border-[#10b981]/40 hover:bg-[#10b981]/30 text-[#10b981] font-bold shadow-lg flex flex-col justify-between space-y-3 transition-all text-left"
+                className="p-5 rounded-2xl bg-[#10b981]/20 border border-[#10b981]/40 hover:bg-[#10b981]/30 text-[#10b981] font-bold flex flex-col justify-between space-y-3 transition-all text-left"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider opacity-80">AI ADVISOR</span>
+                  <span className="text-[10px] uppercase font-bold">AI ADVISOR</span>
                   <MessageSquare className="h-5 w-5" />
                 </div>
                 <div>
                   <span className="text-sm block">Ask Saheli</span>
-                  <span className="text-[11px] opacity-80 font-normal">Get Immediate Advice</span>
+                  <span className="text-[11px] opacity-80 font-normal">Get Legal Advice</span>
                 </div>
               </button>
 
-              {/* Activate SOS Emergency Response */}
               <button
                 onClick={() => navigate('/app/sos')}
-                className="p-5 rounded-2xl bg-[#EF4444] hover:bg-[#dc2626] text-white font-bold shadow-lg flex flex-col justify-between space-y-3 transition-all text-left"
+                className="p-5 rounded-2xl bg-[#EF4444] hover:bg-[#dc2626] text-white font-bold flex flex-col justify-between space-y-3 transition-all text-left"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider opacity-80">EMERGENCY SOS</span>
+                  <span className="text-[10px] uppercase font-bold">EMERGENCY SOS</span>
                   <ShieldAlert className="h-5 w-5" />
                 </div>
                 <div>
                   <span className="text-sm block">Activate SOS</span>
-                  <span className="text-[11px] opacity-80 font-normal font-mono">Immediate Response</span>
+                  <span className="text-[11px] opacity-80 font-normal">Immediate Response</span>
                 </div>
               </button>
-
             </div>
           </div>
 

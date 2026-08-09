@@ -66,7 +66,8 @@ export function Profile() {
 
   // Sync with Backend GET /api/v1/profile
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/v1/profile')
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+    fetch(`${API_BASE_URL}/api/v1/profile`)
       .then(res => res.json())
       .then(data => {
         if (data.profile) {
@@ -79,22 +80,7 @@ export function Profile() {
           }));
         }
       })
-      .catch(() => {
-        fetch('http://localhost:8000/api/v1/profile')
-          .then(res => res.json())
-          .then(data => {
-            if (data.profile) {
-              setProfile(prev => ({
-                ...prev,
-                name: data.profile.name || prev.name,
-                email: data.profile.email || prev.email,
-                phone: data.profile.phone || prev.phone,
-                location: data.profile.location || prev.location
-              }));
-            }
-          })
-          .catch(() => {});
-      });
+      .catch(() => {});
   }, []);
 
   // Trusted Contacts State from Safety Passport
@@ -138,7 +124,8 @@ export function Profile() {
 
     // Sync PUT to backend endpoint
     try {
-      fetch('http://127.0.0.1:8000/api/v1/profile', {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      fetch(`${API_BASE_URL}/api/v1/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -162,7 +149,8 @@ export function Profile() {
         }
       };
       // Sync PUT to backend preferences endpoint
-      fetch('http://127.0.0.1:8000/api/v1/profile/preferences', {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      fetch(`${API_BASE_URL}/api/v1/profile/preferences`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated.notifications)

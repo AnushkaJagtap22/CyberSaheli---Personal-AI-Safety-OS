@@ -162,7 +162,8 @@ export function EmergencySOS() {
     // Optional sync to backend API log endpoint
     try {
       const primaryContact = activeContacts[0];
-      fetch('http://127.0.0.1:8000/api/v1/sos/log', {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      fetch(`${baseUrl}/api/v1/sos/log`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

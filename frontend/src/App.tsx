@@ -8,7 +8,7 @@ import { GlobalAskSaheli } from "./components/GlobalAskSaheli";
 // Core Modules
 import { Dashboard } from "./pages/Dashboard";
 import { VerifySomeone } from "./pages/VerifySomeone";
-import { InvestigateIncident } from "./pages/InvestigateIncident";
+import { IncidentWorkspace as InvestigateIncident } from "./pages/IncidentWorkspace";
 import { EvidenceVault } from "./pages/EvidenceVault";
 import { RecoveryCenter } from "./pages/RecoveryCenter";
 import { RiskRadar as AIRiskRadar } from "./pages/RiskRadar";

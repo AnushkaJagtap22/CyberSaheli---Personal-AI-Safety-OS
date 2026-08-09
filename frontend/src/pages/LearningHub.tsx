@@ -102,15 +102,12 @@ export function LearningHub() {
   // Floating XP Animation Banner State
   const [floatingXp, setFloatingXp] = useState<number | null>(null);
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
   // Fetch Live State from Python Backend (with Local Persistence Fallback)
   const fetchDashboardData = async () => {
     try {
-      let res;
-      try {
-        res = await fetch('http://127.0.0.1:8000/api/v1/learning/dashboard');
-      } catch (e) {
-        res = await fetch('http://localhost:8000/api/v1/learning/dashboard');
-      }
+      const res = await fetch(`${API_BASE_URL}/api/v1/learning/dashboard`);
       const data = await res.json();
       if (data.user) {
         setUser(data.user);
@@ -120,12 +117,7 @@ export function LearningHub() {
 
   const fetchScenariosData = async () => {
     try {
-      let res;
-      try {
-        res = await fetch('http://127.0.0.1:8000/api/v1/learning/scenarios');
-      } catch (e) {
-        res = await fetch('http://localhost:8000/api/v1/learning/scenarios');
-      }
+      const res = await fetch(`${API_BASE_URL}/api/v1/learning/scenarios`);
       const data = await res.json();
       if (data.scenarios) {
         setScenarios(data.scenarios);
@@ -135,12 +127,7 @@ export function LearningHub() {
 
   const fetchDailyChallengeData = async () => {
     try {
-      let res;
-      try {
-        res = await fetch('http://127.0.0.1:8000/api/v1/learning/daily-challenge');
-      } catch (e) {
-        res = await fetch('http://localhost:8000/api/v1/learning/daily-challenge');
-      }
+      const res = await fetch(`${API_BASE_URL}/api/v1/learning/daily-challenge`);
       const data = await res.json();
       setDailyChallenge(data);
     } catch (err) {}
@@ -148,12 +135,7 @@ export function LearningHub() {
 
   const fetchAchievementsData = async () => {
     try {
-      let res;
-      try {
-        res = await fetch('http://127.0.0.1:8000/api/v1/learning/achievements');
-      } catch (e) {
-        res = await fetch('http://localhost:8000/api/v1/learning/achievements');
-      }
+      const res = await fetch(`${API_BASE_URL}/api/v1/learning/achievements`);
       const data = await res.json();
       if (data.achievements) {
         setAchievements(data.achievements);
@@ -173,20 +155,11 @@ export function LearningHub() {
     if (!activeMission || selectedChoiceIdx === null) return;
 
     try {
-      let res;
-      try {
-        res = await fetch(`http://127.0.0.1:8000/api/v1/learning/scenarios/${activeMission.id}/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ choice_index: selectedChoiceIdx, time_taken_sec: 25 })
-        });
-      } catch (e) {
-        res = await fetch(`http://localhost:8000/api/v1/learning/scenarios/${activeMission.id}/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ choice_index: selectedChoiceIdx, time_taken_sec: 25 })
-        });
-      }
+      const res = await fetch(`${API_BASE_URL}/api/v1/learning/scenarios/${activeMission.id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ choice_index: selectedChoiceIdx, time_taken_sec: 25 })
+      });
 
       const data = await res.json();
       setMissionSubmitted(true);
@@ -208,20 +181,11 @@ export function LearningHub() {
     if (selectedDailyOpt === null) return;
 
     try {
-      let res;
-      try {
-        res = await fetch('http://127.0.0.1:8000/api/v1/learning/daily-challenge/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selected_option: selectedDailyOpt })
-        });
-      } catch (e) {
-        res = await fetch('http://localhost:8000/api/v1/learning/daily-challenge/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selected_option: selectedDailyOpt })
-        });
-      }
+      const res = await fetch(`${API_BASE_URL}/api/v1/learning/daily-challenge/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected_option: selectedDailyOpt })
+      });
 
       const data = await res.json();
       setDailySubmitted(true);

@@ -20,7 +20,8 @@ import {
   ChevronUp, 
   Info,
   Terminal,
-  FileText
+  FileText,
+  RefreshCw
 } from 'lucide-react';
 import { 
   runDynamicBackgroundVerification, 
@@ -49,6 +50,7 @@ export function VerifySomeone() {
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [report, setReport] = useState<VerificationReport | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showHowWeReached, setShowHowWeReached] = useState<boolean>(false);
 
   const contextOptions = [
@@ -62,15 +64,13 @@ export function VerifySomeone() {
   ];
 
   const backgroundVerificationSteps = [
-    'Reading screenshot & validating file metadata',
+    'Validating input parameters & file metadata',
     'Extracting visible text & platform indicators',
     'Parsing handles, URLs, and payment VPAs',
     'Running Profile & Identity Consistency Agents',
-    'Checking Image Analysis Agent (Reverse-Image Status)',
-    'Running Scam Pattern Analysis Agent',
-    'Evaluating Domain & Telecom Agents (if applicable)',
+    'Evaluating Domain & Telecom Signals',
     'Correlating evidence across active agent network',
-    'Calculating weighted trust score from evidence',
+    'Calculating evidence-based risk score & confidence',
     'Compiling final Verification Report'
   ];
 
@@ -94,11 +94,13 @@ export function VerifySomeone() {
     if (!selectedFile && !urlInput && !usernameInput && !phoneInput && !emailInput && !nameInput) return;
 
     setIsAnalyzing(true);
+    setErrorMessage(null);
+    setReport(null);
     setCurrentStepIndex(0);
 
     const interval = setInterval(() => {
       setCurrentStepIndex(prev => (prev < backgroundVerificationSteps.length - 1 ? prev + 1 : prev));
-    }, 550);
+    }, 450);
 
     try {
       const res = await runDynamicBackgroundVerification({
@@ -112,14 +114,13 @@ export function VerifySomeone() {
         context: selectedContext || undefined
       });
 
-      setTimeout(() => {
-        clearInterval(interval);
-        setIsAnalyzing(false);
-        setReport(res);
-      }, 5500);
-    } catch (err) {
-      console.error(err);
+      clearInterval(interval);
       setIsAnalyzing(false);
+      setReport(res);
+    } catch (err: any) {
+      clearInterval(interval);
+      setIsAnalyzing(false);
+      setErrorMessage(err?.message || "Verification service connection failed. Please ensure FastAPI backend is running.");
     }
   };
 
@@ -331,6 +332,22 @@ export function VerifySomeone() {
         </div>
       )}
 
+      {/* ERROR STATE BANNER (FAIL-SAFE - NO FAKE SUCCESS RESULTS) */}
+      {errorMessage && !isAnalyzing && (
+        <div className="p-6 rounded-3xl bg-[#ef4444]/10 border border-[#ef4444]/40 space-y-4 shadow-2xl text-xs text-[#fca5a5]">
+          <div className="flex items-center gap-2 font-bold text-white text-sm">
+            <AlertTriangle className="h-5 w-5 text-[#ef4444]" /> Verification Service Unavailable
+          </div>
+          <p>{errorMessage}</p>
+          <button
+            onClick={handleStartBackgroundVerification}
+            className="px-4 py-2 rounded-xl bg-[#ef4444] text-white font-bold hover:bg-[#dc2626] transition-all flex items-center gap-2"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Retry Verification
+          </button>
+        </div>
+      )}
+
       {/* 📊 CYBERSAHELI VERIFICATION REPORT (RESULT OUTPUT) */}
       {report && !isAnalyzing && (
         <div className="space-y-8 animate-fade-in">
@@ -347,28 +364,60 @@ export function VerifySomeone() {
                 <span className="text-xs text-[#64748b] font-mono">{report.timestamp}</span>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#0f1118] border border-[rgba(255,255,255,0.08)] text-center shrink-0">
-                <span className="text-3xl font-extrabold font-mono text-white block">{report.overallScore} / 100</span>
-                <span className={`text-xs font-extrabold font-mono px-3 py-0.5 rounded-full block mt-1 ${
-                  report.riskLevel === 'HIGH RISK' 
-                    ? 'bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/30' 
-                    : report.riskLevel === 'MODERATE RISK'
-                    ? 'bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/30'
-                    : 'bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/30'
-                }`}>
-                  {report.riskLevel}
-                </span>
+              <div className="flex items-center gap-4">
+                {/* Risk Score */}
+                <div className="p-4 rounded-2xl bg-[#0f1118] border border-[rgba(255,255,255,0.08)] text-center shrink-0">
+                  <span className="text-xs text-[#94a3b8] font-mono block uppercase mb-0.5">Risk Score</span>
+                  <span className="text-3xl font-extrabold font-mono text-white block">{report.overallScore} / 100</span>
+                  <span className={`text-xs font-extrabold font-mono px-3 py-0.5 rounded-full block mt-1 ${
+                    report.riskLevel === 'HIGH RISK' 
+                      ? 'bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/30' 
+                      : report.riskLevel === 'MODERATE RISK'
+                      ? 'bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/30'
+                      : report.riskLevel === 'INSUFFICIENT EVIDENCE'
+                      ? 'bg-[#64748b]/20 text-[#94a3b8] border border-[#64748b]/30'
+                      : 'bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/30'
+                  }`}>
+                    {report.riskLevel}
+                  </span>
+                </div>
+
+                {/* AI Confidence */}
+                <div className="p-4 rounded-2xl bg-[#0f1118] border border-[rgba(255,255,255,0.08)] text-center shrink-0 hidden sm:block">
+                  <span className="text-xs text-[#94a3b8] font-mono block uppercase mb-0.5">AI Confidence</span>
+                  <span className="text-3xl font-extrabold font-mono text-[#a78bfa] block">{report.confidence}%</span>
+                  <span className="text-[10px] text-[#64748b] font-mono block mt-1">Analysis Confidence</span>
+                </div>
               </div>
             </div>
 
             {/* Responsible AI Disclaimer */}
-            <div className="p-4 rounded-2xl bg-[#7c3aed]/10 border border-[#7c3aed]/30 text-xs text-[#e9d5ff] space-y-1">
+            <div className={`p-4 rounded-2xl text-xs space-y-1 ${
+              report.riskLevel === 'INSUFFICIENT EVIDENCE'
+                ? 'bg-[#64748b]/15 border border-[#64748b]/30 text-[#cbd5e1]'
+                : 'bg-[#7c3aed]/10 border border-[#7c3aed]/30 text-[#e9d5ff]'
+            }`}>
               <span className="font-mono font-bold block">Trust Assessment: {report.riskLevel}</span>
               <p className="text-[11px] leading-relaxed opacity-90">{report.riskDescription}</p>
             </div>
           </div>
 
-          {/* 📷 EVIDENCE ANALYZED CARD & INSTAGRAM LIMITATION MATRIX */}
+          {/* INSUFFICIENT EVIDENCE SPECIAL CARD */}
+          {report.riskLevel === 'INSUFFICIENT EVIDENCE' && (
+            <div className="p-6 rounded-3xl bg-[#64748b]/10 border border-[#64748b]/30 space-y-3 text-xs text-[#cbd5e1]">
+              <div className="flex items-center gap-2 font-bold text-white text-sm">
+                <Info className="h-5 w-5 text-[#94a3b8]" /> Insufficient Evidence for Conclusive Assessment
+              </div>
+              <p>We could not independently extract enough verifiable signals to evaluate this target.</p>
+              <ul className="list-disc pl-5 space-y-1 font-mono text-[11px] text-[#94a3b8]">
+                {report.limitations?.map((lim, idx) => (
+                  <li key={idx}>{lim}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* 📷 EVIDENCE ANALYZED CARD & SIGNAL STATUS MATRIX */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
             {/* Evidence Analyzed Box */}
@@ -384,8 +433,8 @@ export function VerifySomeone() {
                 <div className="space-y-1 text-[#94a3b8] text-[11px] pt-1">
                   <p>&bull; {report.extractedEntities.username ? `1 Username detected (${report.extractedEntities.username})` : '0 Usernames detected'}</p>
                   <p>&bull; {report.extractedEntities.website ? `1 URL detected (${report.extractedEntities.website})` : '0 URLs detected'}</p>
-                  <p>&bull; {report.extractedEntities.phone ? `1 Phone number detected` : '0 Phone numbers detected'}</p>
-                  <p>&bull; {report.extractedEntities.email ? `1 Email detected` : '0 Emails detected'}</p>
+                  <p>&bull; {report.extractedEntities.phone ? `1 Phone number detected (${report.extractedEntities.phone})` : '0 Phone numbers detected'}</p>
+                  <p>&bull; {report.extractedEntities.email ? `1 Email detected (${report.extractedEntities.email})` : '0 Emails detected'}</p>
                 </div>
               </div>
             </div>
@@ -399,16 +448,16 @@ export function VerifySomeone() {
 
               <div className="space-y-2 font-mono text-xs">
                 <div className="p-2.5 rounded-xl bg-[#171a27] flex items-center justify-between">
-                  <span className="text-[#10b981] font-bold">Observed in Screenshot</span>
-                  <span className="text-white">{report.extractedEntities.username || report.extractedEntities.platform}</span>
+                  <span className="text-[#10b981] font-bold">Observed Input Target</span>
+                  <span className="text-white">{report.targetName}</span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-[#171a27] flex items-center justify-between">
                   <span className="text-[#60a5fa] font-bold">Externally Verified</span>
-                  <span className="text-white">{report.extractedEntities.website ? 'DNS/SSL Checked' : 'Public Signals Analyzed'}</span>
+                  <span className="text-white">{report.extractedEntities.website ? 'DNS & Protocol Checked' : 'Public Signals Analyzed'}</span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-[#171a27] flex items-center justify-between">
                   <span className="text-[#64748b]">Unavailable Signal</span>
-                  <span className="text-[#64748b]">Private Account & Follower History</span>
+                  <span className="text-[#64748b]">Private Credentials & Phone Carrier Records</span>
                 </div>
               </div>
             </div>
@@ -457,19 +506,25 @@ export function VerifySomeone() {
               </h3>
 
               <div className="space-y-3">
-                {report.verifiedSignals.map((sig) => (
-                  <div key={sig.id} className="p-4 rounded-2xl bg-[#171a27] border border-[rgba(255,255,255,0.04)] space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-white flex items-center gap-1.5">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-[#10b981]" /> {sig.title}
-                      </h4>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30">
-                        {sig.source}
-                      </span>
-                    </div>
-                    <p className="text-[#94a3b8] leading-relaxed">{sig.evidenceText}</p>
+                {report.verifiedSignals.length === 0 ? (
+                  <div className="p-4 rounded-2xl bg-[#171a27] text-xs text-[#94a3b8] font-mono">
+                    No positive verification signals extracted.
                   </div>
-                ))}
+                ) : (
+                  report.verifiedSignals.map((sig) => (
+                    <div key={sig.id} className="p-4 rounded-2xl bg-[#171a27] border border-[rgba(255,255,255,0.04)] space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-white flex items-center gap-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-[#10b981]" /> {sig.title}
+                        </h4>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30">
+                          {sig.source || 'Backend Scanner'}
+                        </span>
+                      </div>
+                      <p className="text-[#94a3b8] leading-relaxed">{sig.evidenceText}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -493,7 +548,7 @@ export function VerifySomeone() {
                           <AlertTriangle className="h-3.5 w-3.5 text-[#ef4444]" /> {sig.title}
                         </h4>
                         <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/30">
-                          {sig.source}
+                          {sig.source || 'Threat Scanner'}
                         </span>
                       </div>
                       <p className="text-[#fca5a5] leading-relaxed">{sig.evidenceText}</p>
@@ -562,9 +617,9 @@ export function VerifySomeone() {
                 <p><strong>Verification ID:</strong> {report.verificationId}</p>
                 <p><strong>Input Target:</strong> {report.targetName}</p>
                 <p><strong>Detected Platform:</strong> {report.extractedEntities.platform}</p>
-                <p><strong>Extracted Username:</strong> {report.extractedEntities.username || 'null'}</p>
-                <p><strong>Extracted Website:</strong> {report.extractedEntities.website || 'null'}</p>
-                <p><strong>Extracted Phone:</strong> {report.extractedEntities.phone || 'null'}</p>
+                <p><strong>Risk Score:</strong> {report.overallScore} / 100</p>
+                <p><strong>Risk Level:</strong> {report.riskLevel}</p>
+                <p><strong>AI Confidence:</strong> {report.confidence}%</p>
                 <p><strong>Active Agents:</strong> {report.launchedAgents.filter(a => a.status === 'Active').map(a => a.name).join(', ')}</p>
                 <p><strong>Static Fallback Data Used:</strong> <span className="text-[#10b981] font-bold">FALSE (100% Evidence Driven)</span></p>
               </div>

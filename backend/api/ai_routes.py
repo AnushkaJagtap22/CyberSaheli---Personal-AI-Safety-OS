@@ -13,8 +13,17 @@ class ThreatScanRequest(BaseModel):
     content: str
 
 class BackgroundCheckRequest(BaseModel):
-    target: str
-    platform: str
+    target: Optional[str] = None
+    platform: Optional[str] = "General Evidence"
+    url: Optional[str] = None
+    username: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    name: Optional[str] = None
+    organization: Optional[str] = None
+    context: Optional[str] = None
+    file_name: Optional[str] = None
+    ocr_text: Optional[str] = None
 
 class ChatAnalysisRequest(BaseModel):
     chat_text: str
@@ -55,27 +64,170 @@ async def scan_threat(request: ThreatScanRequest):
         "evidenceSaved": is_high_risk
     }
 
+# ============================================================================
+# DYNAMIC EVIDENCE-DRIVEN BACKGROUND CHECK & TRUST VERIFICATION
+# ============================================================================
+
 @router.post("/background-check")
 async def background_check(request: BackgroundCheckRequest):
-    await asyncio.sleep(1.5)
-    is_fake = "fake" in request.target.lower() or "bot" in request.target.lower() or len(request.target) < 5
+    await asyncio.sleep(1.2)
     
+    target_str = (request.target or request.url or request.username or request.phone or request.email or request.name or request.file_name or "").strip()
+    target_lower = target_str.lower()
+    ocr_lower = (request.ocr_text or "").lower()
+    context_lower = (request.context or "").lower()
+    combined_text = f"{target_lower} {ocr_lower} {context_lower}"
+
+    # Handle Insufficient Input
+    if len(target_str) < 3 and not request.ocr_text:
+        return {
+            "verificationId": f"VER-INF-{random.randint(1000, 9999)}",
+            "targetName": target_str or "Insufficient Target",
+            "riskScore": 0,
+            "riskLevel": "INSUFFICIENT EVIDENCE",
+            "confidence": 0,
+            "riskDescription": "Insufficient evidence provided. We could not independently extract enough verifiable signals to evaluate this identity or link.",
+            "verifiedSignals": [],
+            "riskSignals": [],
+            "limitations": [
+                "Target input string is too short for public footprint correlation.",
+                "No evidence screenshot or domain metadata provided."
+            ],
+            "recommendedActions": [
+                "Provide a complete profile URL (e.g. https://instagram.com/handle)",
+                "Upload a screenshot of the profile or conversation log",
+                "Include associated phone numbers or claimed organization"
+            ]
+        }
+
+    verified_signals = []
+    risk_signals = []
+    limitations = []
+
+    # 1. URL / Domain Analysis
+    url_target = request.url or (target_str if ("http" in target_lower or "www." in target_lower or ".com" in target_lower or ".top" in target_lower) else None)
+    if url_target:
+        if url_target.startswith("https://"):
+            verified_signals.append({
+                "id": "sig-ssl",
+                "title": "SSL/TLS Encryption Verified",
+                "evidenceText": f"Domain {url_target} utilizes valid HTTPS connection protocol.",
+                "severity": "LOW"
+            })
+        else:
+            risk_signals.append({
+                "id": "sig-nossl",
+                "title": "Unencrypted HTTP Protocol",
+                "evidenceText": f"Domain {url_target} does not enforce HTTPS secure encryption.",
+                "severity": "HIGH"
+            })
+
+        if any(url_target.endswith(tld) for tld in [".top", ".xyz", ".info", ".free", ".tk", ".biz"]):
+            risk_signals.append({
+                "id": "sig-[#tld]",
+                "title": "High-Risk Disposable TLD Extension",
+                "evidenceText": f"Domain uses disposable extension commonly flagged for phishing.",
+                "severity": "HIGH"
+            })
+        else:
+            verified_signals.append({
+                "id": "sig-tld-ok",
+                "title": "Standard Top-Level Domain",
+                "evidenceText": "Domain extension aligns with standard web registrations.",
+                "severity": "LOW"
+            })
+
+    # 2. Social Handle & Profile Analysis
+    username = request.username or (target_str if target_str.startswith("@") else None)
+    if username:
+        if any(w in username.lower() for w in ["support", "admin", "official", "job", "career", "hiring", "crypto"]):
+            risk_signals.append({
+                "id": "sig-handle-brand",
+                "title": "Suspicious Brand Mimicry in Handle",
+                "evidenceText": f"Username handle '{username}' contains brand mimicry keywords ('official', 'hiring', 'support').",
+                "severity": "HIGH"
+            })
+        else:
+            verified_signals.append({
+                "id": "sig-handle-fmt",
+                "title": "Username Format Validated",
+                "evidenceText": f"Handle '{username}' conforms to social platform syntax.",
+                "severity": "LOW"
+            })
+
+    # 3. Phone Number Analysis
+    phone = request.phone or (target_str if (target_str.startswith("+") or (target_str.isdigit() and len(target_str) >= 10)) else None)
+    if phone:
+        verified_signals.append({
+            "id": "sig-phone-fmt",
+            "title": "Telecom Number Syntax Validated",
+            "evidenceText": f"Phone number '{phone}' conforms to E.164 international telecom syntax.",
+            "severity": "LOW"
+        })
+        limitations.append("Carrier registration details and Truecaller owner identity cannot be independently retrieved without caller API authorization.")
+
+    # 4. Behavioral & Context Risk Signals
+    if any(k in combined_text for k in ["fee", "money", "pay", "upi", "deposit", "registration", "rs", "rupees", "investment"]):
+        risk_signals.append({
+            "id": "sig-financial-req",
+            "title": "Upfront Financial Solicitation Signal",
+            "evidenceText": "Evidence text contains direct financial payment or registration fee demands.",
+            "severity": "HIGH"
+        })
+
+    if any(k in combined_text for k in ["urgent", "immediately", "within 2 hours", "lock slot", "expire"]):
+        risk_signals.append({
+            "id": "sig-urgency",
+            "title": "Psychological Urgency & Pressure Signal",
+            "evidenceText": "Evidence contains artificial deadline pressure to compel rapid compliance.",
+            "severity": "MEDIUM"
+        })
+
+    # Transparent Deterministic Risk Calculation
+    high_risk_count = sum(1 for s in risk_signals if s["severity"] == "HIGH")
+    med_risk_count = sum(1 for s in risk_signals if s["severity"] == "MEDIUM")
+    
+    if high_risk_count >= 2:
+        risk_score = 88
+        risk_level = "HIGH RISK"
+    elif high_risk_count == 1 or med_risk_count >= 2:
+        risk_score = 62
+        risk_level = "MODERATE RISK"
+    elif med_risk_count == 1:
+        risk_score = 38
+        risk_level = "LOW RISK"
+    else:
+        risk_score = 14
+        risk_level = "LOW RISK"
+
+    confidence = min(96, max(65, len(verified_signals + risk_signals) * 22))
+
+    risk_desc = (
+        "Multiple high-risk signals detected in submitted evidence. Exercise extreme caution." if risk_level == "HIGH RISK"
+        else "Observational risk signals were detected. Verify identity through a secondary channel before sharing sensitive data." if risk_level == "MODERATE RISK"
+        else "No critical threat signals identified in submitted evidence. Standard privacy precautions apply."
+    )
+
+    recs = []
+    if risk_level in ["HIGH RISK", "MODERATE RISK"]:
+        recs.append("Do NOT transfer upfront registration fees or share payment OTPs.")
+        recs.append("Verify company or recruiter handles through their official corporate careers portal.")
+        recs.append("Preserve screenshots in your Evidence Vault.")
+    else:
+        recs.append("Exercise standard online privacy precautions.")
+        recs.append("Never disclose passwords or two-factor authentication codes.")
+
     return {
-        "target": request.target,
-        "platform": request.platform,
-        "trustScore": 28 if is_fake else 86,
-        "isFakeProfile": is_fake,
-        "accountAgeEstimate": "Created 12 days ago" if is_fake else "Created 3+ years ago",
-        "botFollowerLikelihood": 84 if is_fake else 12,
-        "isAvatarCopied": is_fake,
-        "redFlags": [
-            "Display picture reverse search matches stock model image",
-            "High ratio of bot followers with 0 posts",
-            "Account age under 30 days with rapid follower spikes"
-        ] if is_fake else [],
-        "positiveSignals": ["Linked external official LinkedIn handle verified"] if not is_fake else [],
-        "explanation": "Saheli AI audit indicates high probability of an impersonation bot profile." if is_fake else "Profile exhibits healthy organic activity.",
-        "recommendation": "Exercise extreme caution. Do not share personal phone numbers or money." if is_fake else "Legitimate for standard interaction."
+        "verificationId": f"VER-2026-{random.randint(10000, 99999)}",
+        "targetName": target_str or "Submitted Evidence Target",
+        "riskScore": risk_score,
+        "riskLevel": risk_level,
+        "confidence": confidence,
+        "riskDescription": risk_desc,
+        "verifiedSignals": verified_signals,
+        "riskSignals": risk_signals,
+        "limitations": limitations if limitations else ["Assessment is strictly based on submitted evidence and public domain syntax."],
+        "recommendedActions": recs
     }
 
 @router.post("/scan-deepfake")

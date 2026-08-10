@@ -5,6 +5,8 @@ import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { GlobalAskSaheli } from "./components/GlobalAskSaheli";
 
+import { ErrorBoundary } from "./components/ErrorBoundary";
+
 // Core Modules
 import { Dashboard } from "./pages/Dashboard";
 import { VerifySomeone } from "./pages/VerifySomeone";
@@ -72,16 +74,16 @@ export default function App() {
 
           {/* CyberSaheli AI Cyber Safety OS Modules */}
           <Route path="/app" element={<AppLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="verify" element={<VerifySomeone />} />
-            <Route path="investigate" element={<InvestigateIncident />} />
-            <Route path="vault" element={<EvidenceVault />} />
-            <Route path="recovery" element={<RecoveryCenter />} />
-            <Route path="risk-radar" element={<AIRiskRadar />} />
-            <Route path="passport" element={<SafetyPassport />} />
-            <Route path="sos" element={<EmergencySOS />} />
-            <Route path="learn" element={<LearningHub />} />
-            <Route path="profile" element={<ProfileSettings />} />
+            <Route index element={<ErrorBoundary moduleName="Dashboard"><Dashboard /></ErrorBoundary>} />
+            <Route path="verify" element={<ErrorBoundary moduleName="Verify Someone"><VerifySomeone /></ErrorBoundary>} />
+            <Route path="investigate" element={<ErrorBoundary moduleName="Investigate Incident Workspace"><InvestigateIncident /></ErrorBoundary>} />
+            <Route path="vault" element={<ErrorBoundary moduleName="Evidence Vault"><EvidenceVault /></ErrorBoundary>} />
+            <Route path="recovery" element={<ErrorBoundary moduleName="Recovery Center"><RecoveryCenter /></ErrorBoundary>} />
+            <Route path="risk-radar" element={<ErrorBoundary moduleName="AI Risk Radar"><AIRiskRadar /></ErrorBoundary>} />
+            <Route path="passport" element={<ErrorBoundary moduleName="Safety Passport"><SafetyPassport /></ErrorBoundary>} />
+            <Route path="sos" element={<ErrorBoundary moduleName="Emergency SOS"><EmergencySOS /></ErrorBoundary>} />
+            <Route path="learn" element={<ErrorBoundary moduleName="Learning Hub"><LearningHub /></ErrorBoundary>} />
+            <Route path="profile" element={<ErrorBoundary moduleName="Profile Settings"><ProfileSettings /></ErrorBoundary>} />
 
             {/* Clean Route Aliases */}
             <Route path="radar" element={<Navigate to="/app/risk-radar" replace />} />

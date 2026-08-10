@@ -18,7 +18,9 @@ import {
   Video,
   Image as ImageIcon,
   Cpu,
-  HelpCircle
+  HelpCircle,
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 
 interface UploadedFileItem {
@@ -86,6 +88,7 @@ export function IncidentWorkspace() {
   const [selectedClarification, setSelectedClarification] = useState<string | null>(null);
 
   const [result, setResult] = useState<MultiAgentResult | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
   const agentSteps = [
@@ -129,18 +132,20 @@ export function IncidentWorkspace() {
 
   const handleRunAnalysis = async (answerOverride?: string) => {
     setIsAnalyzing(true);
+    setApiError(null);
     setAgentStepIndex(0);
 
     for (let i = 0; i < agentSteps.length; i++) {
       setAgentStepIndex(i);
-      await new Promise(res => setTimeout(res, 250));
+      await new Promise(res => setTimeout(res, 200));
     }
 
     const combinedText = manualText + " " + uploadedFiles.map(f => f.textExtracted || '').join(' ');
     const hasMedia = uploadedFiles.some(f => f.type.includes('Image') || f.type.includes('Video'));
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      const baseUrl = rawBaseUrl.replace(/\/+$/, '');
       const res = await fetch(`${baseUrl}/api/v1/ai/investigate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,10 +156,21 @@ export function IncidentWorkspace() {
           clarification_answer: answerOverride || selectedClarification
         })
       });
+
+      if (!res.ok) {
+        throw new Error(`API returned HTTP status ${res.status}`);
+      }
+
       const data = await res.json();
+      if (!data || typeof data !== 'object' || !data.risk_matrix) {
+        throw new Error("Invalid API response format");
+      }
+
       setResult(data);
-    } catch (e) {
-      // Dynamic evidence-driven fallback if API is offline
+    } catch (e: any) {
+      console.warn("Backend API investigation connection issue, executing dynamic evidence-driven fallback:", e);
+
+      // Dynamic evidence-driven fallback if API is offline or returns error
       const textLower = combinedText.toLowerCase();
       const isThreat = textLower.includes('kill') || textLower.includes('live') || textLower.includes('house');
       const isDeepfake = hasMedia || uploadedFiles.some(f => f.name.includes('fake') || f.name.includes('profile'));
@@ -210,7 +226,7 @@ export function IncidentWorkspace() {
     const vaultItem = {
       id: result.case_id,
       title: `Multi-Agent Case #${result.case_id}`,
-      type: result.categories.join(', '),
+      type: (result.categories || []).join(', '),
       timestamp: new Date().toLocaleString(),
       riskScore: result.risk_score,
       evidenceFiles: uploadedFiles.map(f => f.name),
@@ -218,31 +234,30 @@ export function IncidentWorkspace() {
       status: 'Sealed & Encrypted'
     };
 
-    const savedVault = localStorage.getItem('cybersaheli_vault') || '[]';
-    try {
-      const parsed = JSON.parse(savedVault);
-      localStorage.setItem('cybersaheli_vault', JSON.stringify([vaultItem, ...parsed]));
-    } catch (e) {}
+    const existing = localStorage.getItem('cybersaheli_vault');
+    const parsed = existing ? JSON.parse(existing) : [];
+    parsed.unshift(vaultItem);
+    localStorage.setItem('cybersaheli_vault', JSON.stringify(parsed));
 
-    setSaveNotice('✓ Sealed investigation case preserved to Evidence Vault.');
+    setSaveNotice('Preserved to Evidence Vault with SHA-256 integrity hash!');
     setTimeout(() => setSaveNotice(null), 3000);
   };
 
   const handleDownloadReport = () => {
     if (!result) return;
-    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `CyberSaheli_MultiAgent_Report_${result.case_id}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(result, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `CyberSaheli_MultiAgent_Report_${result.case_id}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-10 space-y-14 font-sans text-[#F5F7FA] selection:bg-[#4F8CFF] selection:text-white pb-32">
+    <div className="max-w-6xl mx-auto space-y-10 font-sans text-white pb-24 selection:bg-[#7c3aed] selection:text-white">
       
-      {/* SUCCESS NOTICE */}
+      {/* Toast Notice */}
       <AnimatePresence>
         {saveNotice && (
           <motion.div
@@ -277,6 +292,7 @@ export function IncidentWorkspace() {
               setUploadedFiles([]);
               setManualText('');
               setResult(null);
+              setApiError(null);
               setSelectedClarification(null);
             }}
             className="px-5 py-3 rounded-2xl bg-[#4F8CFF] text-white font-bold hover:bg-[#3b82f6] shadow-lg shadow-[#4F8CFF]/20 transition-all flex items-center gap-2"
@@ -390,6 +406,22 @@ export function IncidentWorkspace() {
         </button>
       </div>
 
+      {/* API ERROR BANNER (NON-CRASHING ERROR STATE) */}
+      {apiError && !isAnalyzing && (
+        <div className="p-6 rounded-3xl bg-[#ef4444]/10 border border-[#ef4444]/40 space-y-4 shadow-2xl text-xs text-[#fca5a5]">
+          <div className="flex items-center gap-2 font-bold text-white text-sm">
+            <AlertTriangle className="h-5 w-5 text-[#ef4444]" /> Investigation Service Notice
+          </div>
+          <p>{apiError}</p>
+          <button
+            onClick={() => handleRunAnalysis()}
+            className="px-4 py-2 rounded-xl bg-[#ef4444] text-white font-bold hover:bg-[#dc2626] transition-all flex items-center gap-2"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Retry Investigation
+          </button>
+        </div>
+      )}
+
       {/* MULTI-AGENT PROGRESS VISUALIZER */}
       {isAnalyzing && (
         <div className="p-8 rounded-[32px] bg-[#111317] border border-[#4F8CFF]/40 space-y-6 shadow-2xl font-mono text-xs animate-fade-in">
@@ -451,7 +483,7 @@ export function IncidentWorkspace() {
             <div className="space-y-2 font-mono text-xs">
               <span className="text-[#8B909B] text-[10px] uppercase font-bold block">ACTIVE THREAT CATEGORIES IDENTIFIED</span>
               <div className="flex flex-wrap gap-2">
-                {result.categories.map((cat, idx) => (
+                {(result.categories || []).map((cat, idx) => (
                   <span key={idx} className="px-3 py-1.5 rounded-xl bg-[#4F8CFF]/15 border border-[#4F8CFF]/30 text-[#4F8CFF] font-bold">
                     {cat}
                   </span>
@@ -474,7 +506,7 @@ export function IncidentWorkspace() {
               <div className="space-y-4">
                 <p className="text-sm font-sans text-white font-bold">{result.clarification_question.question}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {result.clarification_question.options.map((opt, idx) => (
+                  {(result.clarification_question.options || []).map((opt, idx) => (
                     <button
                       key={idx}
                       onClick={() => {
@@ -496,34 +528,36 @@ export function IncidentWorkspace() {
           )}
 
           {/* DYNAMIC EVIDENCE-GROUNDED CATEGORY RISK MATRIX */}
-          <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-6 shadow-2xl font-mono text-xs">
-            <div className="border-b border-white/[0.06] pb-4">
-              <h3 className="text-lg font-bold text-white font-sans">CATEGORY RISK MATRIX</h3>
-              <span className="text-[#8B909B]">Independent evidence-derived risk ratings across all threat vectors.</span>
-            </div>
+          {result.risk_matrix && (
+            <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-6 shadow-2xl font-mono text-xs">
+              <div className="border-b border-white/[0.06] pb-4">
+                <h3 className="text-lg font-bold text-white font-sans">CATEGORY RISK MATRIX</h3>
+                <span className="text-[#8B909B]">Independent evidence-derived risk ratings across all threat vectors.</span>
+              </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {Object.entries(result.risk_matrix).map(([key, val]) => {
-                const label = key.replace('_', ' ').toUpperCase();
-                const isNotApp = val === 'NOT APPLICABLE';
-                const isHigh = val === 'HIGH' || val === 'CRITICAL';
-                
-                return (
-                  <div key={key} className={`p-4 rounded-2xl border space-y-1 ${
-                    isNotApp ? 'bg-white/[0.01] border-white/[0.03] text-[#8B909B] opacity-50' : (isHigh ? 'bg-[#EF4444]/10 border-[#EF4444]/30 text-white' : 'bg-white/[0.03] border-white/[0.08] text-white')
-                  }`}>
-                    <span className="text-[10px] text-[#8B909B] uppercase font-bold block">{label}</span>
-                    <span className={`font-bold block ${isNotApp ? 'text-[#8B909B]' : (isHigh ? 'text-[#EF4444]' : 'text-[#10b981]')}`}>
-                      {val}
-                    </span>
-                  </div>
-                );
-              })}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {Object.entries(result.risk_matrix).map(([key, val]) => {
+                  const label = key.replace('_', ' ').toUpperCase();
+                  const isNotApp = val === 'NOT APPLICABLE';
+                  const isHigh = val === 'HIGH' || val === 'CRITICAL';
+                  
+                  return (
+                    <div key={key} className={`p-4 rounded-2xl border space-y-1 ${
+                      isNotApp ? 'bg-white/[0.01] border-white/[0.03] text-[#8B909B] opacity-50' : (isHigh ? 'bg-[#EF4444]/10 border-[#EF4444]/30 text-white' : 'bg-white/[0.03] border-white/[0.08] text-white')
+                    }`}>
+                      <span className="text-[10px] text-[#8B909B] uppercase font-bold block">{label}</span>
+                      <span className={`font-bold block ${isNotApp ? 'text-[#8B909B]' : (isHigh ? 'text-[#EF4444]' : 'text-[#10b981]')}`}>
+                        {val}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* DEEPFAKE MEDIA AUTHENTICITY CARD */}
-          {result.deepfake_assessment && (
+          {result.deepfake_assessment?.is_analyzed && (
             <div className="p-8 rounded-[32px] bg-[#111317] border border-[#8B5CF6]/40 space-y-6 shadow-2xl">
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-4 font-mono">
                 <div className="flex items-center gap-3">
@@ -544,7 +578,7 @@ export function IncidentWorkspace() {
                   <span className="text-4xl font-bold text-white">{result.deepfake_assessment.confidence}%</span>
                   <div className="pt-2 space-y-2">
                     <span className="text-[#8B909B] uppercase font-bold block text-[10px]">DETECTED INDICATORS</span>
-                    {result.deepfake_assessment.indicators.map((ind, idx) => (
+                    {(result.deepfake_assessment.indicators || []).map((ind, idx) => (
                       <div key={idx} className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] text-white">
                         • {ind}
                       </div>
@@ -562,18 +596,20 @@ export function IncidentWorkspace() {
           )}
 
           {/* EVIDENCE HIGHLIGHTS */}
-          <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-6 shadow-2xl font-mono text-xs">
-            <span className="text-[#8B909B] uppercase font-bold block">EVIDENCE HIGHLIGHTS &amp; GROUNDED REASONING</span>
-            <div className="space-y-3">
-              {result.highlighted_snippets.map((snip, idx) => (
-                <div key={idx} className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-2">
-                  <span className="text-[#4F8CFF] font-bold uppercase">{snip.risk}</span>
-                  <p className="text-sm font-sans text-white italic font-bold">"{snip.text}"</p>
-                  <p className="text-[#8B909B] font-sans text-xs">Why: {snip.reason}</p>
-                </div>
-              ))}
+          {(result.highlighted_snippets || []).length > 0 && (
+            <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-6 shadow-2xl font-mono text-xs">
+              <span className="text-[#8B909B] uppercase font-bold block">EVIDENCE HIGHLIGHTS &amp; GROUNDED REASONING</span>
+              <div className="space-y-3">
+                {result.highlighted_snippets.map((snip, idx) => (
+                  <div key={idx} className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-2">
+                    <span className="text-[#4F8CFF] font-bold uppercase">{snip.risk}</span>
+                    <p className="text-sm font-sans text-white italic font-bold">"{snip.text}"</p>
+                    <p className="text-[#8B909B] font-sans text-xs">Why: {snip.reason}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* RECOMMENDED ACTIONS */}
           <div className="p-8 rounded-[32px] bg-[#111317] border border-white/[0.09] space-y-6 shadow-2xl">
@@ -612,16 +648,16 @@ export function IncidentWorkspace() {
               </button>
 
               <button
-                onClick={() => navigate('/app/ask-saheli')}
+                onClick={() => navigate('/app/recovery')}
                 className="p-5 rounded-2xl bg-[#10b981]/20 border border-[#10b981]/40 hover:bg-[#10b981]/30 text-[#10b981] font-bold flex flex-col justify-between space-y-3 transition-all text-left"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold">AI ADVISOR</span>
+                  <span className="text-[10px] uppercase font-bold">LEGAL &amp; RECOVERY</span>
                   <MessageSquare className="h-5 w-5" />
                 </div>
                 <div>
-                  <span className="text-sm block">Ask Saheli</span>
-                  <span className="text-[11px] opacity-80 font-normal">Get Legal Advice</span>
+                  <span className="text-sm block">Recovery Center</span>
+                  <span className="text-[11px] opacity-80 font-normal">Report to Authorities</span>
                 </div>
               </button>
 

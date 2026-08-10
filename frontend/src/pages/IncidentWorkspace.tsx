@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { getApiUrl } from '../services/apiConfig';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -144,9 +145,8 @@ export function IncidentWorkspace() {
     const hasMedia = uploadedFiles.some(f => f.type.includes('Image') || f.type.includes('Video'));
 
     try {
-      const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-      const baseUrl = rawBaseUrl.replace(/\/+$/, '');
-      const res = await fetch(`${baseUrl}/api/v1/ai/investigate`, {
+      const targetUrl = getApiUrl('/api/v1/ai/investigate');
+      const res = await fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

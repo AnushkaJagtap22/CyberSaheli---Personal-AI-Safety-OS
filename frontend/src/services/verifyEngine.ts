@@ -1,3 +1,5 @@
+import { getApiUrl } from './apiConfig';
+
 export interface ExtractedEntities {
   platform: 'Instagram Profile' | 'WhatsApp Chat' | 'LinkedIn Profile' | 'Website' | 'Email' | 'General Evidence Document';
   username: string | null;
@@ -112,9 +114,6 @@ export async function runDynamicBackgroundVerification(
     context?: string;
   }
 ): Promise<VerificationReport> {
-  const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-  const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '');
-
   let extracted: ExtractedEntities = {
     platform: inputs.url ? 'Website' : inputs.email ? 'Email' : 'General Evidence Document',
     username: inputs.username?.trim() || null,
@@ -142,7 +141,7 @@ export async function runDynamicBackgroundVerification(
   }
 
   // Call FastAPI Backend POST /api/v1/ai/background-check
-  const targetUrl = `${API_BASE_URL}/api/v1/ai/background-check`;
+  const targetUrl = getApiUrl('/api/v1/ai/background-check');
   try {
     console.log(`[CyberSaheli AI] Submitting verification request to: ${targetUrl}`);
     const response = await fetch(targetUrl, {

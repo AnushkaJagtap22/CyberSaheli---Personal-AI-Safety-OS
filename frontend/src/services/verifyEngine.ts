@@ -112,7 +112,8 @@ export async function runDynamicBackgroundVerification(
     context?: string;
   }
 ): Promise<VerificationReport> {
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
   let extracted: ExtractedEntities = {
     platform: inputs.url ? 'Website' : inputs.email ? 'Email' : 'General Evidence Document',

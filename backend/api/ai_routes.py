@@ -322,20 +322,41 @@ async def investigate_incident(request: IncidentInvestigateRequest):
 
     # AGENT 11 & 12: EVIDENCE CORRELATION & RISK ASSESSMENT AGENT
     risk_matrix = {
-        "financial_risk": "HIGH" if (has_financial and ("fee" in text_lower or "upi" in text_lower or "otp" in text_lower)) else ("MEDIUM" if has_financial else "NOT APPLICABLE"),
-        "privacy_risk": "HIGH" if (has_blackmail or "password" in text_lower) else ("MEDIUM" if (has_phishing or has_harassment) else "LOW"),
+        "financial_risk": "HIGH" if (has_financial and ("fee" in text_lower or "upi" in text_lower or "otp" in text_lower or "money" in text_lower or "pay" in text_lower)) else ("MEDIUM" if has_financial else "NOT APPLICABLE"),
+        "privacy_risk": "HIGH" if (has_blackmail or "password" in text_lower or "otp" in text_lower) else ("MEDIUM" if (has_phishing or has_harassment) else "LOW"),
         "identity_risk": "HIGH" if (has_impersonation or has_deepfake_signals) else "NOT APPLICABLE",
-        "harassment_risk": "HIGH" if (has_harassment and has_threat) else ("MEDIUM" if has_harassment else "NOT APPLICABLE"),
-        "threat_risk": "CRITICAL" if (has_threat and ("kill" in text_lower or "house" in text_lower)) else ("HIGH" if has_threat else "NOT APPLICABLE"),
+        "harassment_risk": "HIGH" if (has_harassment or has_blackmail) else "NOT APPLICABLE",
+        "threat_risk": "CRITICAL" if (has_threat and ("kill" in text_lower or "house" in text_lower or "live" in text_lower or "address" in text_lower)) else ("HIGH" if has_threat else "NOT APPLICABLE"),
         "media_authenticity_risk": "HIGH" if has_deepfake_signals else ("MEDIUM" if (has_image or has_video) else "NOT APPLICABLE"),
-        "immediate_safety_risk": "HIGH" if (has_threat and "live" in text_lower) else "LOW"
+        "immediate_safety_risk": "CRITICAL" if (has_threat and ("kill" in text_lower or "house" in text_lower or "address" in text_lower)) else ("HIGH" if has_threat else "LOW")
     }
 
-    # Calculate overall risk score dynamically from active risks
+    # Highest Category Risk Escalation Principle (overall risk must match or exceed the highest category threat)
+    max_risk_level = "LOW"
+    for cat_val in risk_matrix.values():
+        if cat_val == "CRITICAL":
+            max_risk_level = "CRITICAL"
+            break
+        elif cat_val == "HIGH" and max_risk_level != "CRITICAL":
+            max_risk_level = "HIGH"
+        elif cat_val == "MEDIUM" and max_risk_level not in ["CRITICAL", "HIGH"]:
+            max_risk_level = "MEDIUM"
+
     high_count = sum(1 for v in risk_matrix.values() if v in ["HIGH", "CRITICAL"])
     med_count = sum(1 for v in risk_matrix.values() if v == "MEDIUM")
-    overall_score = min(98, max(12, high_count * 30 + med_count * 15))
-    risk_level = "HIGH" if overall_score >= 70 else ("MEDIUM" if overall_score >= 40 else "LOW")
+
+    if max_risk_level == "CRITICAL":
+        overall_score = min(98, 88 + high_count * 3)
+        risk_level = "CRITICAL"
+    elif max_risk_level == "HIGH":
+        overall_score = min(92, 76 + (high_count - 1) * 4 + med_count * 2)
+        risk_level = "HIGH"
+    elif max_risk_level == "MEDIUM":
+        overall_score = min(68, 48 + med_count * 6)
+        risk_level = "MEDIUM"
+    else:
+        overall_score = 15 if (raw_text.strip() or file_names) else 0
+        risk_level = "LOW" if (raw_text.strip() or file_names) else "INSUFFICIENT EVIDENCE"
 
     # AGENT DYNAMIC QUESTION GENERATOR (0 or 1 question ONLY when context is ambiguous)
     clarification_question = None

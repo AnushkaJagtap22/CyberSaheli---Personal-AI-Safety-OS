@@ -172,26 +172,40 @@ export function IncidentWorkspace() {
 
       // Dynamic evidence-driven fallback if API is offline or returns error
       const textLower = combinedText.toLowerCase();
-      const isThreat = textLower.includes('kill') || textLower.includes('live') || textLower.includes('house');
+      const hasFinancial = ["upi", "money", "pay", "fee", "registration", "rupees", "rs", "deposit", "transfer", "bank", "otp", "pin", "card"].some(w => textLower.includes(w));
+      const hasThreat = ["kill", "hurt", "find you", "meet me", "know where", "live", "house", "address", "outside", "follow"].some(w => textLower.includes(w));
+      const hasBlackmail = ["leak", "viral", "expose", "photo", "video", "share with your", "tell your"].some(w => textLower.includes(w));
+      const hasHarassment = ["useless", "stupid", "bitch", "ugly", "escape me", "messaging you", "harass", "bother", "shut up"].some(w => textLower.includes(w));
+      const hasPhishing = textLower.includes("http") || textLower.includes("login") || textLower.includes("password") || textLower.includes("verify");
       const isDeepfake = hasMedia || uploadedFiles.some(f => f.name.includes('fake') || f.name.includes('profile'));
-      
+
+      const fallbackMatrix: RiskMatrix = {
+        financial_risk: hasFinancial ? "HIGH" : "NOT APPLICABLE",
+        privacy_risk: (hasBlackmail || textLower.includes("password")) ? "HIGH" : (hasPhishing ? "MEDIUM" : "LOW"),
+        identity_risk: isDeepfake ? "HIGH" : "NOT APPLICABLE",
+        harassment_risk: (hasHarassment || hasBlackmail) ? "HIGH" : "NOT APPLICABLE",
+        threat_risk: (hasThreat && (textLower.includes("kill") || textLower.includes("house"))) ? "CRITICAL" : (hasThreat ? "HIGH" : "NOT APPLICABLE"),
+        media_authenticity_risk: isDeepfake ? "HIGH" : (hasMedia ? "MEDIUM" : "NOT APPLICABLE"),
+        immediate_safety_risk: (hasThreat && (textLower.includes("kill") || textLower.includes("house"))) ? "CRITICAL" : (hasThreat ? "HIGH" : "LOW")
+      };
+
+      const highCount = Object.values(fallbackMatrix).filter(v => v === "HIGH" || v === "CRITICAL").length;
+      const medCount = Object.values(fallbackMatrix).filter(v => v === "MEDIUM").length;
+      const isCritical = Object.values(fallbackMatrix).includes("CRITICAL");
+      const isHigh = Object.values(fallbackMatrix).includes("HIGH");
+
+      const score = isCritical ? 92 : (isHigh ? 78 + highCount * 4 : (medCount > 0 ? 52 : 18));
+      const level: 'HIGH' | 'MEDIUM' | 'LOW' = (isCritical || isHigh) ? 'HIGH' : (medCount > 0 ? 'MEDIUM' : 'LOW');
+
       setResult({
         case_id: `CS-2026-${Math.floor(1000 + Math.random() * 9000)}`,
         created_at: "Today · Just Now",
-        risk_score: isThreat ? 88 : (isDeepfake ? 78 : 35),
-        risk_level: isThreat || isDeepfake ? "HIGH" : "MEDIUM",
-        categories: isDeepfake ? ["Potentially Manipulated Media", "Account Impersonation"] : ["Direct Threat / Intimidation"],
-        active_types: isDeepfake ? ["DEEPFAKE", "IMPERSONATION"] : ["THREAT"],
-        confidence: 92,
-        risk_matrix: {
-          financial_risk: "NOT APPLICABLE",
-          privacy_risk: isThreat ? "HIGH" : "LOW",
-          identity_risk: isDeepfake ? "HIGH" : "NOT APPLICABLE",
-          harassment_risk: isThreat ? "HIGH" : "NOT APPLICABLE",
-          threat_risk: isThreat ? "CRITICAL" : "NOT APPLICABLE",
-          media_authenticity_risk: isDeepfake ? "HIGH" : "NOT APPLICABLE",
-          immediate_safety_risk: isThreat ? "HIGH" : "LOW"
-        },
+        risk_score: score,
+        risk_level: level,
+        categories: isCritical ? ["Direct Physical Intimidation / Threat"] : (isDeepfake ? ["Potentially Manipulated Media", "Account Impersonation"] : (hasFinancial ? ["Financial / UPI Fraud"] : ["Digital Safety Incident"])),
+        active_types: isCritical ? ["THREAT"] : (isDeepfake ? ["DEEPFAKE", "IMPERSONATION"] : (hasFinancial ? ["FINANCIAL_FRAUD"] : ["GENERAL"])),
+        confidence: 90,
+        risk_matrix: fallbackMatrix,
         deepfake_assessment: isDeepfake ? {
           is_analyzed: true,
           risk_level: "HIGH",

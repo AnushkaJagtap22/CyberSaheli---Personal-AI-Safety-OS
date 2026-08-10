@@ -141,8 +141,10 @@ export async function runDynamicBackgroundVerification(
   }
 
   // Call FastAPI Backend POST /api/v1/ai/background-check
+  const targetUrl = `${API_BASE_URL}/api/v1/ai/background-check`;
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/ai/background-check`, {
+    console.log(`[CyberSaheli AI] Submitting verification request to: ${targetUrl}`);
+    const response = await fetch(targetUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -227,11 +229,14 @@ export async function runDynamicBackgroundVerification(
         staticDataUsed: false,
         timestamp: new Date().toLocaleString()
       };
+    } else {
+      const errText = await response.text();
+      console.error("[CyberSaheli AI] Backend API Error Response:", { status: response.status, statusText: response.statusText, body: errText });
     }
   } catch (e) {
-    console.error('Backend connection failed:', e);
+    console.error('[CyberSaheli AI] Backend connection failed:', { targetUrl, error: e });
   }
 
   // FAIL-SAFE ERROR STATE (NEVER RETURNS A FAKE 84% RISK SCORE!)
-  throw new Error("Unable to connect to CyberSaheli Verification Service. Please check backend API server connectivity.");
+  throw new Error(`Unable to connect to CyberSaheli Verification Service (${targetUrl}). Please check backend API server connectivity.`);
 }

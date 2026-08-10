@@ -10,6 +10,8 @@ import {
   Globe
 } from 'lucide-react';
 
+import { getApiUrl } from '../services/apiConfig';
+
 interface ScenarioChoice {
   text: string;
   risk_score: number;
@@ -102,12 +104,10 @@ export function LearningHub() {
   // Floating XP Animation Banner State
   const [floatingXp, setFloatingXp] = useState<number | null>(null);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-
   // Fetch Live State from Python Backend (with Local Persistence Fallback)
   const fetchDashboardData = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/learning/dashboard`);
+      const res = await fetch(getApiUrl('/api/v1/learning/dashboard'));
       const data = await res.json();
       if (data.user) {
         setUser(data.user);
@@ -117,7 +117,7 @@ export function LearningHub() {
 
   const fetchScenariosData = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/learning/scenarios`);
+      const res = await fetch(getApiUrl('/api/v1/learning/scenarios'));
       const data = await res.json();
       if (data.scenarios) {
         setScenarios(data.scenarios);
@@ -127,7 +127,7 @@ export function LearningHub() {
 
   const fetchDailyChallengeData = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/learning/daily-challenge`);
+      const res = await fetch(getApiUrl('/api/v1/learning/daily-challenge'));
       const data = await res.json();
       setDailyChallenge(data);
     } catch (err) {}
@@ -135,7 +135,7 @@ export function LearningHub() {
 
   const fetchAchievementsData = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/learning/achievements`);
+      const res = await fetch(getApiUrl('/api/v1/learning/achievements'));
       const data = await res.json();
       if (data.achievements) {
         setAchievements(data.achievements);
@@ -155,7 +155,7 @@ export function LearningHub() {
     if (!activeMission || selectedChoiceIdx === null) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/learning/scenarios/${activeMission.id}/complete`, {
+      const res = await fetch(getApiUrl(`/api/v1/learning/scenarios/${activeMission.id}/complete`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ choice_index: selectedChoiceIdx, time_taken_sec: 25 })
@@ -181,7 +181,7 @@ export function LearningHub() {
     if (selectedDailyOpt === null) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/learning/daily-challenge/submit`, {
+      const res = await fetch(getApiUrl('/api/v1/learning/daily-challenge/submit'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ selected_option: selectedDailyOpt })
@@ -266,7 +266,7 @@ export function LearningHub() {
           <div className="md:col-span-8 space-y-3">
             <div className="flex items-center justify-between text-xs text-white">
               <span className="font-bold text-[#4F8CFF]">TOTAL XP: {user.total_xp} / {user.next_level_target} XP</span>
-              <span className="text-[#8B909B]">{user.xp_needed} XP to Level {user.level + 1} ({LEVEL_TITLES_MAP[min(10, user.level + 1)]})</span>
+              <span className="text-[#8B909B]">{user.xp_needed} XP to Level {user.level + 1} ({LEVEL_TITLES_MAP[Math.min(10, user.level + 1)]})</span>
             </div>
 
             <div className="w-full h-3.5 rounded-full bg-white/[0.06] overflow-hidden p-0.5 border border-white/[0.08]">
@@ -557,8 +557,4 @@ export function LearningHub() {
 
     </div>
   );
-}
-
-function min(a: number, b: number): number {
-  return a < b ? a : b;
 }

@@ -6,7 +6,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import ai_routes, sos_routes, learning_routes, profile_routes
+from api import ai_routes, sos_routes, learning_routes, profile_routes, auth_routes
 
 
 app = FastAPI(
@@ -76,6 +76,14 @@ app.include_router(
     profile_routes.router,
     prefix="/api/v1/profile",
     tags=["User Profile"]
+)
+
+
+# Auth routes
+app.include_router(
+    auth_routes.router,
+    prefix="/api/v1/auth",
+    tags=["Authentication"]
 )
 
 

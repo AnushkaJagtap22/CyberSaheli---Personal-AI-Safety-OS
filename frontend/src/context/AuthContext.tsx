@@ -29,8 +29,6 @@ interface AuthContextType {
   user: ExtendedUserProfile | null;
   firebaseUser: FirebaseUser | null;
   isLoading: boolean;
-  loginAsUser: () => void;
-  loginAsAdmin: () => void;
   logout: () => Promise<void>;
   updateUserProfile: (updatedFields: Partial<ExtendedUserProfile>) => Promise<void>;
   updateUserStats: (scansDelta?: number, threatsDelta?: number) => void;
@@ -55,20 +53,7 @@ export function getInitials(name?: string, email?: string): string {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<ExtendedUserProfile | null>(() => {
-    const saved = localStorage.getItem('cybersaheli_user_profile');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.name && !parsed.name.toLowerCase().includes('anushka')) {
-          return parsed;
-        }
-      } catch (e) {
-        // Fallback
-      }
-    }
-    return null;
-  });
+  const [user, setUser] = useState<ExtendedUserProfile | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
@@ -108,71 +93,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
 
         setUser(profile);
-        localStorage.setItem('cybersaheli_user_profile', JSON.stringify(profile));
       } else {
-        // Check if there is a local session profile
-        const saved = localStorage.getItem('cybersaheli_user_profile');
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (parsed && parsed.name && !parsed.name.toLowerCase().includes('anushka')) {
-              setUser(parsed);
-              return;
-            }
-          } catch (e) {
-            // Ignore
-          }
-        }
         setUser(null);
       }
     });
 
     return () => unsubscribe();
   }, []);
-
-  const loginAsUser = () => {
-    const demoProfile: ExtendedUserProfile = {
-      id: 'usr_demo_001',
-      uid: 'usr_demo_001',
-      name: 'CyberSaheli User',
-      email: 'user@cybersaheli.org',
-      role: 'Cyber Safety User',
-      platformRole: 'Verified User',
-      profileStatus: 'Active Session',
-      safetyScore: 92,
-      streakDays: 7,
-      totalScans: 12,
-      threatsPrevented: 3,
-      evidenceSavedCount: 1,
-      initials: 'CU',
-      language: 'English',
-      theme: 'Midnight Titanium'
-    };
-    setUser(demoProfile);
-    localStorage.setItem('cybersaheli_user_profile', JSON.stringify(demoProfile));
-  };
-
-  const loginAsAdmin = () => {
-    const adminProfile: ExtendedUserProfile = {
-      id: 'adm_saheli_99',
-      uid: 'adm_saheli_99',
-      name: 'Security Analyst',
-      email: 'analyst@cybersaheli.org',
-      role: 'System Administrator',
-      platformRole: 'Administrator',
-      profileStatus: 'System Admin',
-      safetyScore: 98,
-      streakDays: 30,
-      totalScans: 150,
-      threatsPrevented: 45,
-      evidenceSavedCount: 20,
-      initials: 'SA',
-      language: 'English',
-      theme: 'Midnight Titanium'
-    };
-    setUser(adminProfile);
-    localStorage.setItem('cybersaheli_user_profile', JSON.stringify(adminProfile));
-  };
 
   const logout = async () => {
     try {
@@ -181,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Firebase signOut error", e);
     }
     setUser(null);
-    localStorage.removeItem('cybersaheli_user_profile');
+    setFirebaseUser(null);
   };
 
   const updateUserProfile = async (updatedFields: Partial<ExtendedUserProfile>) => {
@@ -194,23 +121,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setUser((prev) => {
-      const base: ExtendedUserProfile = prev || {
-        id: 'usr_001',
-        name: updatedFields.name || 'User',
-        email: updatedFields.email || 'user@cybersaheli.org',
-        role: 'Cyber Safety User',
-        safetyScore: 90,
-        streakDays: 1,
-        totalScans: 0,
-        threatsPrevented: 0,
-        evidenceSavedCount: 0
-      };
+      if (!prev) return null;
       const updated: ExtendedUserProfile = { 
-        ...base, 
+        ...prev, 
         ...updatedFields,
-        initials: getInitials(updatedFields.name || base.name, updatedFields.email || base.email)
+        initials: getInitials(updatedFields.name || prev.name, updatedFields.email || prev.email)
       };
-      localStorage.setItem('cybersaheli_user_profile', JSON.stringify(updated));
       return updated;
     });
   };
@@ -218,18 +134,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateUserStats = (scansDelta = 1, threatsDelta = 0) => {
     setUser((prev) => {
       if (!prev) return null;
-      const updated = {
+      return {
         ...prev,
         totalScans: prev.totalScans + scansDelta,
         threatsPrevented: prev.threatsPrevented + threatsDelta,
       };
-      localStorage.setItem('cybersaheli_user_profile', JSON.stringify(updated));
-      return updated;
     });
   };
 
   return (
-    <AuthContext.Provider value={{ user, firebaseUser, isLoading, loginAsUser, loginAsAdmin, logout, updateUserProfile, updateUserStats }}>
+    <AuthContext.Provider value={{ user, firebaseUser, isLoading, logout, updateUserProfile, updateUserStats }}>
       {children}
     </AuthContext.Provider>
   );

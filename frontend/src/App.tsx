@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { GlobalAskSaheli } from "./components/GlobalAskSaheli";
-
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Core Modules
@@ -71,9 +71,14 @@ export default function App() {
           {/* Public Landing & Auth Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/login" element={<Navigate to="/auth" replace />} />
 
-          {/* CyberSaheli AI Cyber Safety OS Modules */}
-          <Route path="/app" element={<AppLayout />}>
+          {/* CyberSaheli Protected AI Cyber Safety OS Modules */}
+          <Route path="/app" element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          }>
             <Route index element={<ErrorBoundary moduleName="Dashboard"><Dashboard /></ErrorBoundary>} />
             <Route path="verify" element={<ErrorBoundary moduleName="Verify Someone"><VerifySomeone /></ErrorBoundary>} />
             <Route path="investigate" element={<ErrorBoundary moduleName="Investigate Incident Workspace"><InvestigateIncident /></ErrorBoundary>} />

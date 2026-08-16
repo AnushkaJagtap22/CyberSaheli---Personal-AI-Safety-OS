@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, UserCheck, ShieldAlert, ArrowRight, Lock, Mail, User, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { ShieldCheck, ArrowRight, Lock, Mail, User, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { 
   auth, 
   signInWithEmailAndPassword, 
@@ -12,7 +11,6 @@ import {
 
 export const Auth: React.FC = () => {
   const navigate = useNavigate();
-  const { loginAsUser, loginAsAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'login' | 'register' | 'forgot'>('login');
   const [role, setRole] = useState<'user' | 'institution' | 'admin'>('user');
 
@@ -51,32 +49,22 @@ export const Auth: React.FC = () => {
         setMessage("Password reset instructions have been sent to your email address.");
       }
     } catch (err: any) {
-      console.error("Firebase auth error:", err);
+      console.error("Firebase authentication failure:", err);
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('Invalid email address or password.');
       } else if (err.code === 'auth/email-already-in-use') {
         setError('An account with this email address already exists.');
       } else if (err.code === 'auth/weak-password') {
         setError('Password should be at least 6 characters.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
       } else {
-        // Fallback for offline or unconfigured Firebase project
-        if (role === 'admin') loginAsAdmin();
-        else loginAsUser();
-        navigate('/app');
+        setError('Authentication failed. Please check your credentials and network connection.');
       }
+      // CRITICAL: DO NOT NAVIGATE TO /app ON AUTHENTICATION FAILURE
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoUser = () => {
-    loginAsUser();
-    navigate('/app');
-  };
-
-  const handleDemoAdmin = () => {
-    loginAsAdmin();
-    navigate('/app');
   };
 
   return (
@@ -103,31 +91,6 @@ export const Auth: React.FC = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="titanium-card py-8 px-6 shadow-2xl rounded-3xl border border-[rgba(255,255,255,0.08)] sm:px-10 space-y-6">
-          
-          {/* Quick Demo Access */}
-          <div className="p-4 rounded-2xl bg-[#111214] border border-[rgba(255,255,255,0.08)] space-y-2">
-            <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#22d3ee] text-center">
-              Instant Demo Access
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={handleDemoUser}
-                className="py-2.5 px-3 rounded-xl bg-[#4f8cff] hover:bg-[#3b76e5] text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all duration-200"
-              >
-                <UserCheck className="h-4 w-4" />
-                Demo User
-              </button>
-              <button
-                type="button"
-                onClick={handleDemoAdmin}
-                className="py-2.5 px-3 rounded-xl bg-[#8b5cf6] hover:bg-[#7c3aed] text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all duration-200"
-              >
-                <ShieldAlert className="h-4 w-4" />
-                Cyber Cell Admin
-              </button>
-            </div>
-          </div>
 
           {/* Error & Success Messages */}
           {error && (

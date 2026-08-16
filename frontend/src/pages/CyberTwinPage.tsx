@@ -50,7 +50,7 @@ export const CyberTwinPage: React.FC = () => {
 
         <div className="space-y-1 text-center sm:text-left flex-1">
           <span className="text-[10px] uppercase font-mono font-bold text-[#5b6b47]">CYBER TWIN STATUS</span>
-          <h2 className="text-xl font-extrabold text-[#232323]">{user?.name || "Anushka Sharma"} (Digital Twin)</h2>
+          <h2 className="text-xl font-extrabold text-[#232323]">{user?.name || user?.email?.split('@')[0] || "CyberSaheli User"} (Digital Twin)</h2>
           <p className="text-xs text-[#66605a]">Your digital footprint is 95% protected against public OSINT indexing.</p>
         </div>
       </div>

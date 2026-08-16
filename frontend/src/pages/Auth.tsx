@@ -19,6 +19,7 @@ export const Auth: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,6 +28,12 @@ export const Auth: React.FC = () => {
     e.preventDefault();
     setError(null);
     setMessage(null);
+
+    if (activeTab === 'register' && password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -36,7 +43,7 @@ export const Auth: React.FC = () => {
       } else if (activeTab === 'register') {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         if (name.trim()) {
-          await updateProfile(userCredential.user, { displayName: name });
+          await updateProfile(userCredential.user, { displayName: name.trim() });
         }
         navigate('/app');
       } else if (activeTab === 'forgot') {
@@ -97,7 +104,7 @@ export const Auth: React.FC = () => {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="titanium-card py-8 px-6 shadow-2xl rounded-3xl border border-[rgba(255,255,255,0.08)] sm:px-10 space-y-6">
           
-          {/* Quick Demo Switchers */}
+          {/* Quick Demo Access */}
           <div className="p-4 rounded-2xl bg-[#111214] border border-[rgba(255,255,255,0.08)] space-y-2">
             <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#22d3ee] text-center">
               Instant Demo Access
@@ -214,7 +221,7 @@ export const Auth: React.FC = () => {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="CyberSaheli User"
+                    placeholder="Enter your full name"
                     className="w-full input-titanium text-xs pl-10 placeholder-[#8b909b]"
                   />
                 </div>
@@ -230,7 +237,7 @@ export const Auth: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="user@cybersaheli.org"
+                  placeholder="Enter your email"
                   className="w-full input-titanium text-xs pl-10 placeholder-[#8b909b]"
                 />
               </div>
@@ -257,7 +264,24 @@ export const Auth: React.FC = () => {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
+                    placeholder={activeTab === 'register' ? 'Create a password' : 'Enter your password'}
+                    className="w-full input-titanium text-xs pl-10 placeholder-[#8b909b]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'register' && (
+              <div>
+                <label className="block text-xs font-medium text-[#c6c8d1] mb-1">Confirm Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-[#4f8cff]" />
+                  <input
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm your password"
                     className="w-full input-titanium text-xs pl-10 placeholder-[#8b909b]"
                   />
                 </div>

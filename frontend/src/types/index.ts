@@ -139,7 +139,7 @@ export interface UserProfile {
   totalScans: number;
   threatsPrevented: number;
   evidenceSavedCount: number;
-  avatarUrl: string;
+  avatarUrl?: string;
 }
 
 export interface AdminAnalytics {

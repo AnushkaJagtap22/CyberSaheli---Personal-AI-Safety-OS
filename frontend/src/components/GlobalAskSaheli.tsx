@@ -39,7 +39,7 @@ export function GlobalAskSaheli() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const userName = user?.name ? user.name.split(' ')[0] : 'Anushka';
+  const userName = user?.name ? user.name.split(' ')[0] : (user?.email ? user.email.split('@')[0] : 'User');
 
   // Floating Panel Visibility
   const [isOpen, setIsOpen] = useState(false);

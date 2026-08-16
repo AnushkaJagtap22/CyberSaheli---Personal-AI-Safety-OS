@@ -39,7 +39,7 @@ interface SecretDoc {
 export function SafetyPassport() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const userName = user?.name || 'Anushka Jagtap';
+  const userName = user?.name || user?.email?.split('@')[0] || 'CyberSaheli User';
 
   // Contact State (persisted in localStorage)
   const [contacts, setContacts] = useState<TrustedContact[]>(() => {

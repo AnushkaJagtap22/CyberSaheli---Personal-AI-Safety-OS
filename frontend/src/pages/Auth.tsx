@@ -1,25 +1,65 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, UserCheck, ShieldAlert, ArrowRight, Lock, Mail, User } from 'lucide-react';
+import { ShieldCheck, UserCheck, ShieldAlert, ArrowRight, Lock, Mail, User, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { 
+  auth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile, 
+  sendPasswordResetEmail 
+} from '../services/firebase';
 
 export const Auth: React.FC = () => {
   const navigate = useNavigate();
   const { loginAsUser, loginAsAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+  const [activeTab, setActiveTab] = useState<'login' | 'register' | 'forgot'>('login');
   const [role, setRole] = useState<'user' | 'institution' | 'admin'>('user');
 
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (role === 'admin') {
-      loginAsAdmin();
-    } else {
-      loginAsUser();
+    setError(null);
+    setMessage(null);
+    setLoading(true);
+
+    try {
+      if (activeTab === 'login') {
+        await signInWithEmailAndPassword(auth, email, password);
+        navigate('/app');
+      } else if (activeTab === 'register') {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (name.trim()) {
+          await updateProfile(userCredential.user, { displayName: name });
+        }
+        navigate('/app');
+      } else if (activeTab === 'forgot') {
+        await sendPasswordResetEmail(auth, email);
+        setMessage("Password reset instructions have been sent to your email address.");
+      }
+    } catch (err: any) {
+      console.error("Firebase auth error:", err);
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setError('Invalid email address or password.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('An account with this email address already exists.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters.');
+      } else {
+        // Fallback for offline or unconfigured Firebase project
+        if (role === 'admin') loginAsAdmin();
+        else loginAsUser();
+        navigate('/app');
+      }
+    } finally {
+      setLoading(false);
     }
-    navigate('/app');
   };
 
   const handleDemoUser = () => {
@@ -47,7 +87,7 @@ export const Auth: React.FC = () => {
           </span>
         </div>
         <h2 className="text-2xl font-bold text-white tracking-tight">
-          {activeTab === 'login' ? 'Welcome Back to Your Safety Shield' : 'Create Your CyberSaheli Account'}
+          {activeTab === 'login' ? 'Welcome Back to Your Safety Shield' : activeTab === 'register' ? 'Create Your CyberSaheli Account' : 'Reset Your Password'}
         </h2>
         <p className="text-xs text-[#8b909b]">
           AI Digital Bodyguard for Women • Detect, Protect, Empower
@@ -57,10 +97,10 @@ export const Auth: React.FC = () => {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="titanium-card py-8 px-6 shadow-2xl rounded-3xl border border-[rgba(255,255,255,0.08)] sm:px-10 space-y-6">
           
-          {/* Quick Demo Login Switchers */}
+          {/* Quick Demo Switchers */}
           <div className="p-4 rounded-2xl bg-[#111214] border border-[rgba(255,255,255,0.08)] space-y-2">
             <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#22d3ee] text-center">
-              Instant Hackathon Demo Logins
+              Instant Demo Access
             </div>
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -82,25 +122,40 @@ export const Auth: React.FC = () => {
             </div>
           </div>
 
+          {/* Error & Success Messages */}
+          {error && (
+            <div className="p-3 rounded-xl bg-[#ef4444]/15 border border-[#ef4444]/30 text-[#ef4444] text-xs font-semibold flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {message && (
+            <div className="p-3 rounded-xl bg-[#22c55e]/15 border border-[#22c55e]/30 text-[#22c55e] text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+              <span>{message}</span>
+            </div>
+          )}
+
           {/* Login / Register Tab Switcher */}
-          <div className="flex border-b border-[rgba(255,255,255,0.08)]">
+          <div className="flex border-b border-[rgba(255,255,255,0.08)] font-mono text-xs">
             <button
-              className={`flex-1 pb-3 text-xs font-mono font-bold border-b-2 transition-colors ${
+              className={`flex-1 pb-3 font-bold border-b-2 transition-colors ${
                 activeTab === 'login'
                   ? 'border-[#4f8cff] text-[#4f8cff]'
                   : 'border-transparent text-[#8b909b] hover:text-[#ffffff]'
               }`}
-              onClick={() => setActiveTab('login')}
+              onClick={() => { setActiveTab('login'); setError(null); setMessage(null); }}
             >
               Sign In
             </button>
             <button
-              className={`flex-1 pb-3 text-xs font-mono font-bold border-b-2 transition-colors ${
+              className={`flex-1 pb-3 font-bold border-b-2 transition-colors ${
                 activeTab === 'register'
                   ? 'border-[#4f8cff] text-[#4f8cff]'
                   : 'border-transparent text-[#8b909b] hover:text-[#ffffff]'
               }`}
-              onClick={() => setActiveTab('register')}
+              onClick={() => { setActiveTab('register'); setError(null); setMessage(null); }}
             >
               Create Account
             </button>
@@ -157,7 +212,9 @@ export const Auth: React.FC = () => {
                   <input
                     type="text"
                     required
-                    placeholder="Anushka Sharma"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="CyberSaheli User"
                     className="w-full input-titanium text-xs pl-10 placeholder-[#8b909b]"
                   />
                 </div>
@@ -173,32 +230,46 @@ export const Auth: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="anushka.safety@cybersaheli.org"
+                  placeholder="user@cybersaheli.org"
                   className="w-full input-titanium text-xs pl-10 placeholder-[#8b909b]"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-[#c6c8d1] mb-1">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-[#4f8cff]" />
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full input-titanium text-xs pl-10 placeholder-[#8b909b]"
-                />
+            {activeTab !== 'forgot' && (
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-medium text-[#c6c8d1]">Password</label>
+                  {activeTab === 'login' && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('forgot')}
+                      className="text-[11px] text-[#4f8cff] hover:underline font-mono"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-[#4f8cff]" />
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full input-titanium text-xs pl-10 placeholder-[#8b909b]"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             <button
               type="submit"
-              className="w-full btn-primary text-xs flex items-center justify-center gap-2 mt-4 py-3.5"
+              disabled={loading}
+              className="w-full btn-primary text-xs flex items-center justify-center gap-2 mt-4 py-3.5 disabled:opacity-50"
             >
-              {activeTab === 'login' ? 'Sign In to Dashboard' : 'Create Free Account'}
+              {loading ? 'Processing...' : activeTab === 'login' ? 'Sign In to Dashboard' : activeTab === 'register' ? 'Create Free Account' : 'Send Reset Link'}
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>

@@ -21,8 +21,8 @@ class NotificationPreferencesRequest(BaseModel):
 # In-memory user profile data store
 user_profile_db: Dict[str, Any] = {
     "id": "usr_001",
-    "name": "Anushka Jagtap",
-    "email": "anushka@cybersaheli.org",
+    "name": "CyberSaheli User",
+    "email": "user@cybersaheli.org",
     "phone": "+91 98765 43210",
     "location": "Pune, Maharashtra",
     "language": "English",

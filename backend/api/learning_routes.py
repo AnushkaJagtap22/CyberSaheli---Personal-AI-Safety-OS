@@ -130,7 +130,7 @@ async def get_learning_dashboard():
         "status": "online",
         "user": {
             "id": "user_default",
-            "name": "Anushka Jagtap",
+            "name": "CyberSaheli User",
             "level": level_info["level"],
             "title": level_info["title"],
             "total_xp": level_info["total_xp"],

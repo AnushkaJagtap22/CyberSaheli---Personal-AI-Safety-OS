@@ -103,14 +103,24 @@ export function Sidebar() {
         <div className="pt-4 border-t border-[rgba(255,255,255,0.08)]">
           <div className="flex items-center justify-between p-2.5 rounded-2xl bg-[#17181c] border border-[rgba(255,255,255,0.08)]">
             <div className="flex items-center space-x-3 overflow-hidden">
-              <img
-                src={user?.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80"}
-                alt="Avatar"
-                className="h-8 w-8 rounded-full border border-[#7c3aed] object-cover flex-shrink-0"
-              />
+              {user?.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt="Avatar"
+                  className="h-8 w-8 rounded-full border border-[#7c3aed] object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="h-8 w-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center font-bold font-mono text-xs flex-shrink-0 shadow-lg">
+                  {user?.initials || (user?.name ? user.name.slice(0, 2).toUpperCase() : 'CU')}
+                </div>
+              )}
               <div className="hidden lg:block truncate text-left">
-                <span className="text-xs font-bold text-[#ffffff] block truncate">{user?.name || "Anushka Jagtap"}</span>
-                <span className="text-[10px] text-[#8b909b] uppercase font-mono block">Verified User</span>
+                <span className="text-xs font-bold text-[#ffffff] block truncate">
+                  {user?.name || user?.email?.split('@')[0] || "CyberSaheli User"}
+                </span>
+                <span className="text-[10px] text-[#8b909b] uppercase font-mono block">
+                  {user?.platformRole || "Verified User"}
+                </span>
               </div>
             </div>
 

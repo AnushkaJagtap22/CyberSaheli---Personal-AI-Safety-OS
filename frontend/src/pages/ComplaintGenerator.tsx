@@ -16,9 +16,9 @@ export const ComplaintGenerator: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Form State
-  const [complainantName, setComplainantName] = useState('Anushka Sharma');
-  const [contactNumber, setContactNumber] = useState('+91 98765 43210');
-  const [email] = useState('anushka.safety@cybersaheli.org');
+  const [complainantName, setComplainantName] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
+  const [email] = useState('');
   const [incidentType, setIncidentType] = useState('Financial Scam & Impersonation');
   const [suspectDetails, setSuspectDetails] = useState('Telegram: @amazon_recruiters_in, Email: hr@amazon-jobs-india.top');
   const [incidentDate, setIncidentDate] = useState('2026-08-05');

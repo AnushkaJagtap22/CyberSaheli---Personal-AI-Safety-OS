@@ -46,8 +46,8 @@ export function Profile() {
       try { return JSON.parse(saved); } catch (e) {}
     }
     return {
-      name: authUser?.name || 'Anushka Jagtap',
-      email: authUser?.email || 'anushka@cybersaheli.org',
+      name: authUser?.name || authUser?.email?.split('@')[0] || 'CyberSaheli User',
+      email: authUser?.email || 'user@cybersaheli.org',
       phone: '+91 98765 43210',
       location: 'Pune, Maharashtra',
       language: 'English',

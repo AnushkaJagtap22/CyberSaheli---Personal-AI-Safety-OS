@@ -20,8 +20,8 @@ export const ProfileSettings: React.FC = () => {
   const { user, updateUserProfile } = useAuth();
 
   // Editable Profile States
-  const [name, setName] = useState(user?.name || 'Anushka Jagtap');
-  const [role, setRole] = useState(user?.role || 'Student | AI & Cybersecurity Enthusiast');
+  const [name, setName] = useState(user?.name || user?.email?.split('@')[0] || 'CyberSaheli User');
+  const [role, setRole] = useState(user?.role || 'Verified Cyber Safety User');
   const [language, setLanguage] = useState(user?.language || 'English');
   const [theme, setTheme] = useState(user?.theme || 'Midnight Titanium');
   const [isSaved, setIsSaved] = useState(false);

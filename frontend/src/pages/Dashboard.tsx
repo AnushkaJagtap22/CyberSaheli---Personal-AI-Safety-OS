@@ -29,7 +29,7 @@ export function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  const userName = user?.name ? user.name.split(' ')[0] : "Anushka";
+  const userName = user?.name ? user.name.split(' ')[0] : (user?.email ? user.email.split('@')[0] : 'User');
   const hour = currentTime.getHours();
 
   // Time-based salutation logic
@@ -53,7 +53,7 @@ export function Dashboard() {
 
   // Contextual Subtitles
   const contextSubtitles = {
-    en: `Your Recruitment Scam investigation is waiting. Your digital identity looks secure today with no active threat alerts.`,
+    en: `Your recruitment scam investigation is ready. Your digital identity looks secure today with no active threat alerts.`,
     hi: `आपकी भर्ती घोटाले की जांच जारी रखने के लिए तैयार है। आपकी डिजिटल सुरक्षा आज सुरक्षित है।`,
     mr: `तुमची भरती घोटाळा तपासणी पुन्हा सुरू करण्यासाठी तयार आहे. आज तुमची डिजिटल सुरक्षा सुरक्षित आहे.`
   };
@@ -62,19 +62,19 @@ export function Dashboard() {
   const dailyBriefBullets = {
     en: [
       'No suspicious activity detected in connected accounts.',
-      'LinkedIn profile (@anushkajagtap) synced successfully.',
+      `User account (${user?.email || 'active session'}) verified successfully.`,
       '3 new CERT-In cyber advisories added to AI Risk Radar.',
       'Last security scan completed 2 minutes ago.'
     ],
     hi: [
       'कनेक्ट किए गए खातों में कोई संदिग्ध गतिविधि नहीं पाई गई।',
-      'लिंक्डइन प्रोफाइल (@anushkajagtap) सफलतापूर्वक सिंक हो गई।',
+      `उपयोगकर्ता खाता (${user?.email || 'सक्रिय सत्र'}) सफलतापूर्वक सत्यापित।`,
       'एआई रिस्क रडार में 3 नई CERT-In सलाहें जोड़ी गईं।',
       'अंतिम सुरक्षा स्कैन 2 मिनट पहले पूरा हुआ।'
     ],
     mr: [
       'कनेक्ट केलेल्या खात्यांमध्ये कोणतीही संशयास्पद क्रिया आढळली नाही.',
-      'LinkedIn प्रोफाईल (@anushkajagtap) यशस्वीरित्या सिंक झाले.',
+      `वापरकर्ता खाते (${user?.email || 'सक्रिय सत्र'}) यशस्वीरित्या सत्यापित.`,
       'एआय रिस्क रडारमध्ये ३ नवीन CERT-In सूचना जोडल्या.',
       'शेवटचे सुरक्षा स्कॅन २ मिनिटांपूर्वी पूर्ण झाले.'
     ]
@@ -112,8 +112,8 @@ export function Dashboard() {
 
   // Recent activity feed
   const recentActivities = [
-    { id: 'act-1', text: 'Linked GitHub OAuth profile @AnushkaJagtap229503353458', time: 'Today', status: 'Verified' },
-    { id: 'act-2', text: 'Linked LinkedIn professional profile @anushkajagtap', time: 'Today', status: 'Verified' },
+    { id: 'act-1', text: `Verified OAuth Session for ${user?.email || 'CyberSaheli User'}`, time: 'Today', status: 'Verified' },
+    { id: 'act-[#]', text: `Security Audit Active for UID: ${user?.id || 'usr_active'}`, time: 'Today', status: 'Verified' },
     { id: 'act-3', text: 'Secured 3 items in Evidence Vault with SHA-256 Hashes', time: '2 days ago', status: 'Sealed' }
   ];
 

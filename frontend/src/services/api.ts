@@ -13,20 +13,19 @@ import type {
   SecurityAchievement
 } from '../types';
 
-// Seed user data for Anushka Jagtap
+// Seed user data for CyberSaheli
 const MOCK_USER: UserProfile = {
   id: 'usr_saheli_001',
-  name: 'Anushka Jagtap',
-  email: 'anushka.jagtap@cybersaheli.org',
-  role: 'Student | AI & Cybersecurity Enthusiast',
-  platformRole: 'Primary User',
-  profileStatus: 'Verified User',
+  name: 'CyberSaheli User',
+  email: 'user@cybersaheli.org',
+  role: 'Cyber Safety User',
+  platformRole: 'Verified User',
+  profileStatus: 'Active Session',
   safetyScore: 92,
   streakDays: 14,
   totalScans: 42,
   threatsPrevented: 9,
   evidenceSavedCount: 3,
-  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
 };
 
 let mockEvidenceStore: EvidenceItem[] = [
